@@ -106,7 +106,7 @@ h1:focus {
 }
 
 /* Responsive adjustments */
-@@media (max-width: 768px) {
+@media (max-width: 768px) {
     .table-responsive {
         font-size: 0.8rem;
     }
@@ -355,4 +355,22 @@ h1:focus {
     background: #fff3cd;
     border-color: #ffc107;
     transform: scale(1.05);
+}
+
+/* نوارابزار ویرایشگر فول‌اسکرین گالری */
+.gallery-fullscreen .fs-toolbar {
+    position: fixed;
+    top: 18px;
+    inset-inline-start: 18px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    z-index: 1090;
+    background: rgba(0, 0, 0, 0.45);
+    padding: 8px 12px;
+    border-radius: 12px;
+    backdrop-filter: blur(3px);
+}
+.gallery-fullscreen .fs-toolbar .btn {
+    white-space: nowrap;
 }

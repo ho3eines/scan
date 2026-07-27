@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @using ScanSystem.Shared
 @using ScanSystem.Shared.Entities
+@implements IAsyncDisposable
 @inject NavigationManager Navigation
 @inject IScanService ScanService
 @inject HttpClient Http
@@ -29,13 +30,13 @@
                 <div class="d-flex align-items-center gap-2">
                     <span class="agent-dot @(isConnected ? "online" : "offline")"></span>
                     <small class="text-muted">@(isConnected ? "سرور متصل" : "سرور قطع")</small>
-                    <span class="badge bg-light text-dark ms-2">@total / @gallery.Count نمایش داده شد</span>
+                    <span class="badge bg-light text-dark ms-2">@gallery.Count / @total نمایش داده شد</span>
                 </div>
             </div>
         </div>
     </div>
 
-    @* نوار ابزار: اسکن + گروه ها + دانلود рука ZIP *@
+    @* نوار ابزار: اسکن + گروه‌ها + دانلود ZIP دسته‌ای *@
     <div class="card shadow-sm mb-3">
         <div class="card-body py-2 d-flex align-items-center flex-wrap gap-2">
             <div class="d-flex align-items-center gap-2">
@@ -50,6 +51,11 @@
                         }
                     }
                 </select>
+            </div>
+
+            <div class="form-check form-check-inline mb-0">
+                <input class="form-check-input" type="checkbox" id="chkGalleryMultiPage" @bind="scanMultiPage" />
+                <label class="form-check-label small" for="chkGalleryMultiPage">چندصفحه‌ای (ADF)</label>
             </div>
 
             <button class="btn btn-success btn-sm" disabled="@(!canScan || isScanning)" @onclick="StartScan">
@@ -74,6 +80,8 @@
                               @onclick="() => { activeGroup = g; ResetAndLoad(); }"
                               style="@(dragOverGroup == g.Id ? "background:#fff3cd;border-color:#ffc107;transform:scale(1.05)" : "")">
                             <i class="bi bi-folder2"></i> @g.Name
+                            <i class="bi bi-x-circle text-danger ms-1" style="font-size:11px"
+                               title="حذف گروه" @onclick:stopPropagation="true" @onclick="() => DeleteGroup(g)"></i>
                         </span>
                     }
                 }
@@ -100,7 +108,7 @@
         <div class="text-center py-5">
             <i class="bi bi-inbox display-1 text-muted"></i>
             <p class="mt-3 text-muted">هنوز اسکنی ثبت نشده است.</p>
-            <p class="text-muted small">روی دکمه «اسکن» بزنید یا device را انتخاب کنید.</p>
+            <p class="text-muted small">روی دکمه «اسکن» بزنید یا دستگاه مورد نظر را انتخاب کنید.</p>
         </div>
     }
     else
@@ -113,8 +121,7 @@
                      draggable="true"
                      @ondragstart="@(() => DragImage = item.Id)"
                      @ondragend="@(() => DragImage = Guid.Empty)"
-                     @onclick="() => ToggleSelect(item.Id)"
-                     @ondblclick="() => OpenFullscreen(item.Id)"
+                     @onclick="() => OpenFullscreen(item.Id)"
                      style="@((dragOverGroup != null && DragImage == item.Id) ? "opacity:0.5" : "")">
                     <input type="checkbox" class="tile-check" checked="@picked"
                            @onclick="@(() => ToggleSelect(item.Id))"
@@ -128,7 +135,7 @@
             }
         </div>
 
-        @* دکمه "بارگذاری بیشتر" برای Lazy Loading *@
+        @* دکمه «بارگذاری بیشتر» برای Lazy Loading *@
         <div class="text-center mt-3 mb-4">
             @if (loading)
             {
@@ -161,14 +168,51 @@
     }
 </div>
 
-@* فول‌اسکرین *@
+@* مودال فول‌اسکرین با نوارابزار ویرایش (چرخش / جایگزینی / گروه / حذف) *@
 @if (fullscreenId != null)
 {
-    <div class="gallery-fullscreen" @onkeydown="@(e => { if (e.Key == "Escape") CloseFullscreen(); })">
-        <img src="@($"/api/images/{fullscreenId}")" alt="پیش‌نمایش" />
-        <button class="btn btn-light fs-exit" @onclick="CloseFullscreen">
-            <i class="bi bi-x-lg"></i> خروج
-        </button>
+    <div class="gallery-fullscreen" tabindex="0"
+         @onkeydown="@(e => { if (e.Key == "Escape") CloseFullscreen(); })">
+        <div class="fs-toolbar">
+            <div class="btn-group" role="group">
+                <button class="btn btn-light btn-sm" title="چرخش ۹۰ درجه" @onclick="() => RotateImage(90)">
+                    <i class="bi bi-arrow-clockwise"></i> چرخش
+                </button>
+                <label class="btn btn-light btn-sm mb-0" title="جایگزینی با فایل جدید">
+                    <i class="bi bi-upload"></i> جایگزینی
+                    <InputFile OnChange="ReplaceImage" style="display:none" accept="image/*" />
+                </label>
+                <select class="form-select form-select-sm border-0" style="width:auto"
+                        title="افزودن به گروه" @onchange="AssignFromModal">
+                    <option value="">گروه...</option>
+                    @if (groups != null)
+                    {
+                        @foreach (var g in groups)
+                        {
+                            <option value="@g.Name">@g.Name</option>
+                        }
+                    }
+                </select>
+                <button class="btn btn-outline-light btn-sm" title="دانلود تصویر" @onclick="DownloadCurrent">
+                    <i class="bi bi-download"></i>
+                </button>
+                <button class="btn btn-danger btn-sm" title="حذف تصویر" @onclick="DeleteFromModal">
+                    <i class="bi bi-trash"></i> حذف
+                </button>
+            </div>
+            <button class="btn btn-light btn-sm fs-exit" @onclick="CloseFullscreen">
+                <i class="bi bi-x-lg"></i> خروج
+            </button>
+        </div>
+
+        @if (editorBusy)
+        {
+            <div class="text-white text-center">
+                <div class="spinner-border"></div>
+                <p class="mt-2 small">در حال پردازش...</p>
+            </div>
+        }
+        <img src="@FullscreenUrl" alt="پیش‌نمایش" style="@(editorBusy ? "opacity:0.3" : "")" />
     </div>
 }
 
@@ -183,9 +227,10 @@
     private bool loading = false;
     private const string gridId = "galleryGrid";
 
-    // Agentها (به‌صورت ساختار مرکب برای نمایش انتخاب دستگاه)
+    // Agentها (ساختار مرکب برای انتخاب دستگاه)
     private AgentListDto agents = new();
     private string? activeMachine = null;
+    private bool scanMultiPage = true;
 
     // گروه‌ها
     private List<ImageGroup>? groups;
@@ -196,8 +241,10 @@
     // انتخاب چندگانه
     private HashSet<Guid> selectedImages = new();
 
-    // فول‌اسکرین
+    // فول‌اسکرین / ویرایشگر
     private Guid? fullscreenId = null;
+    private long imageVersion = 0; // cache-buster بعد از چرخش/جایگزینی
+    private bool editorBusy = false;
 
     // وضعیت
     private bool isConnected = false;
@@ -206,6 +253,10 @@
     private string messageType = "info";
 
     private bool canScan => isConnected && !string.IsNullOrEmpty(activeMachine);
+
+    private string FullscreenUrl => fullscreenId.HasValue
+        ? $"/api/images/{fullscreenId.Value}?v={imageVersion}"
+        : "";
 
     protected override async Task OnInitializedAsync()
     {
@@ -235,17 +286,29 @@
             StateHasChanged();
         }));
 
-        hub.On("PageUploaded", async (Guid requestId, Guid imageId, int pageNumber) => await InvokeAsync(async () =>
+        hub.On<Guid, Guid, int>("PageUploaded", async (requestId, imageId, pageNumber) => await InvokeAsync(async () =>
         {
             await LoadGalleryPage(reset: true);
             StateHasChanged();
         }));
 
-        hub.On("ScanCompleted", async (Guid id) => await InvokeAsync(() =>
+        hub.On<Guid>("ScanCompleted", async (id) => await InvokeAsync(() =>
         {
             isScanning = false;
             message = "اسکن کامل شد.";
             messageType = "success";
+            StateHasChanged();
+        }));
+
+        hub.On<Guid, string>("StatusChanged", async (id, status) => await InvokeAsync(() =>
+        {
+            if (status == ScanStatus.Error)
+            {
+                isScanning = false;
+                message = "اسکن با خطا مواجه شد. لاگ Agent را بررسی کنید.";
+                messageType = "danger";
+            }
+            StateHasChanged();
         }));
 
         hub.On<List<AgentDto>>("AgentsList", async (list) => await InvokeAsync(() =>
@@ -311,7 +374,7 @@
             total = tot;
             skip += items.Count;
 
-            // رفع موارد انتخاب‌شده که دیگر وجود ندارند
+            // رفع موارد انتخاب‌شده‌ای که دیگر وجود ندارند
             if (reset) selectedImages.Clear();
         }
         catch (Exception ex)
@@ -337,8 +400,7 @@
         messageType = "info";
         try
         {
-            // multiPage = false در حالت پیش‌فرض (تک صفحه)
-            await hub.InvokeAsync("RequestScan", activeMachine, false);
+            await hub.InvokeAsync("RequestScan", activeMachine, scanMultiPage);
         }
         catch (Exception ex)
         {
@@ -354,16 +416,138 @@
         else selectedImages.Add(id);
     }
 
-    private void OpenFullscreen(Guid id) => fullscreenId = id;
+    private void OpenFullscreen(Guid id)
+    {
+        fullscreenId = id;
+        imageVersion = DateTime.Now.Ticks;
+    }
+
     private void CloseFullscreen() => fullscreenId = null;
+
+    // ─────────── ویرایش تصویر در مودال ───────────
+
+    private async Task RotateImage(int angle)
+    {
+        if (fullscreenId == null) return;
+        editorBusy = true;
+        StateHasChanged();
+        try
+        {
+            var url = Navigation.ToAbsoluteUri($"/api/images/{fullscreenId}/rotate");
+            var body = System.Text.Json.JsonSerializer.Serialize(new { angle });
+            var resp = await Http.PostAsync(url, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+            if (resp.IsSuccessStatusCode)
+            {
+                imageVersion = DateTime.Now.Ticks; // کش‌شکن → تصویر دوباره بارگذاری می‌شود
+                message = $"تصویر {angle} درجه چرخید.";
+                messageType = "success";
+            }
+            else
+            {
+                message = "خطا در چرخش تصویر.";
+                messageType = "danger";
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا: {ex.Message}";
+            messageType = "danger";
+        }
+        finally
+        {
+            editorBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ReplaceImage(Microsoft.AspNetCore.Components.Forms.InputFileChangeEventArgs e)
+    {
+        if (fullscreenId == null) return;
+        var file = e.File;
+        if (file == null) return;
+        editorBusy = true;
+        StateHasChanged();
+        try
+        {
+            const long maxBytes = 40L * 1024 * 1024;
+            using var stream = file.OpenReadStream(maxBytes);
+            using var content = new MultipartFormDataContent();
+            var fileContent = new StreamContent(stream);
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+            content.Add(fileContent, "file", file.Name);
+
+            var url = Navigation.ToAbsoluteUri($"/api/images/{fullscreenId}/replace");
+            var resp = await Http.PostAsync(url, content);
+            if (resp.IsSuccessStatusCode)
+            {
+                imageVersion = DateTime.Now.Ticks;
+                message = "تصویر جایگزین شد.";
+                messageType = "success";
+                await LoadGalleryPage(reset: true); // thumbnail هم تازه شود
+            }
+            else
+            {
+                message = $"خطا در جایگزینی تصویر ({(int)resp.StatusCode}).";
+                messageType = "danger";
+            }
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا: {ex.Message}";
+            messageType = "danger";
+        }
+        finally
+        {
+            editorBusy = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task DeleteFromModal()
+    {
+        if (fullscreenId == null) return;
+        var id = fullscreenId.Value;
+        try
+        {
+            await ScanService.DeleteImageAsync(id);
+            selectedImages.Remove(id);
+            fullscreenId = null;
+            message = "تصویر حذف شد.";
+            messageType = "warning";
+            await LoadGalleryPage(reset: true);
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا در حذف: {ex.Message}";
+            messageType = "danger";
+        }
+    }
+
+    private async Task DownloadCurrent()
+    {
+        if (fullscreenId == null) return;
+        // دانلود مستقیم با GET: ساخت لنگر موقت و کلیک روی آن.
+        var shortId = fullscreenId.Value.ToString()[..8];
+        await JS.InvokeVoidAsync("eval",
+            $"var a=document.createElement('a');a.href='/api/images/{fullscreenId}';a.download='scan_{shortId}.jpg';document.body.appendChild(a);a.click();a.remove();");
+    }
+
+    private async Task AssignFromModal(ChangeEventArgs e)
+    {
+        var groupName = e.Value?.ToString();
+        if (fullscreenId == null || string.IsNullOrWhiteSpace(groupName)) return;
+        await AssignGroup(fullscreenId.Value, groupName);
+    }
+
+    // ─────────── Drag & Drop گروه‌بندی ───────────
 
     private async Task DropOnGroup(ImageGroup g)
     {
         dragOverGroup = null;
         if (DragImage == Guid.Empty) return;
-        var doc = DragImage;
+        var imageId = DragImage;
         DragImage = Guid.Empty;
-        await AssignGroup(doc, g.Name);
+        await AssignGroup(imageId, g.Name);
     }
 
     private async Task AssignGroup(Guid imageId, string? groupName)
@@ -376,7 +560,15 @@
             if (resp.IsSuccessStatusCode)
             {
                 var item = gallery.FirstOrDefault(x => x.Id == imageId);
-                if (item != null) item.Groups = groupName;
+                if (item != null && !string.IsNullOrWhiteSpace(groupName))
+                {
+                    // نام گروه به فهرست گروه‌های تصویر اضافه می‌شود (بدون تکرار).
+                    var existing = (item.Groups ?? "")
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                        .ToHashSet();
+                    existing.Add(groupName.Trim());
+                    item.Groups = string.Join("، ", existing.OrderBy(x => x));
+                }
                 await ReloadGroups();
                 message = $"تصویر به گروه «{groupName}» اضافه شد.";
                 messageType = "success";
@@ -407,30 +599,42 @@
         }
     }
 
+    private async Task DeleteGroup(ImageGroup g)
+    {
+        var ok = await JS.InvokeAsync<bool>("confirm", $"گروه «{g.Name}» حذف شود؟ (تصاویر حذف نمی‌شوند)");
+        if (!ok) return;
+        try
+        {
+            await ScanService.DeleteGroupAsync(g.Id);
+            if (activeGroup?.Id == g.Id) activeGroup = null;
+            await ReloadGroups();
+            await ResetAndLoad();
+            message = $"گروه «{g.Name}» حذف شد.";
+            messageType = "warning";
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا در حذف گروه: {ex.Message}";
+            messageType = "danger";
+        }
+    }
+
+    // ─────────── انتخاب دسته‌ای ───────────
+
     private async Task DownloadZip()
     {
         if (selectedImages.Count == 0) return;
         try
         {
-            var url = Navigation.ToAbsoluteUri("/api/zip");
+            var url = Navigation.ToAbsoluteUri("/api/zip").ToString();
             var body = System.Text.Json.JsonSerializer.Serialize(new { ids = selectedImages.ToArray() });
-            var resp = await Http.PostAsync(url, new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
-            if (resp.IsSuccessStatusCode)
+            var ok = await JS.InvokeAsync<bool>("scanSystem.postDownload", url, body,
+                $"scans_{DateTime.Now:yyyyMMdd_HHmmss}.zip");
+            if (ok)
             {
-                var bytes = await resp.Content.ReadAsByteArrayAsync();
-                var base64 = Convert.ToBase64String(bytes);
-                await JS.InvokeVoidAsync("eval", $@"
-                    var b = atob('{base64}');
-                    var a = new Uint8Array(b.length);
-                    for (var i=0;i<b.length;i++) a[i]=b.charCodeAt(i);
-                    var blob = new Blob([a], {{type:'application/zip'}});
-                    var u = URL.createObjectURL(blob);
-                    var l = document.createElement('a');
-                    l.href = u; l.download = 'scans_' + Date.now() + '.zip';
-                    document.body.appendChild(l); l.click(); l.remove();
-                    URL.revokeObjectURL(u);
-                ");
                 selectedImages.Clear();
+                message = "فایل ZIP آماده و دانلود شد.";
+                messageType = "success";
             }
             else
             {

@@ -111,7 +111,7 @@ public class ScanRequestRepository : IScanRequestRepository
 
     /// <summary>
     /// کوئری دینامیک DataTable Server-side: جستجو روی MachineName/Status و مرتب‌سازی بر اساس ستون انتخابی.
-    /// از Parametrized و هیچ رشته‌ای به SQL تزریق نمی‌شود.
+    /// همه مقادیر کاربر به‌صورت Parametrized ارسال می‌شوند؛ فقط نام ستون از فهرست سفید انتخاب می‌شود.
     /// </summary>
     public async Task<(List<ScanRequestDto> data, int recordsTotal, int recordsFiltered)> GetDataAsync(
         int start, int length, string? search, int orderColumnIndex, string orderDir)
@@ -129,41 +129,39 @@ public class ScanRequestRepository : IScanRequestRepository
         var dir = string.Equals(orderDir, "asc", StringComparison.OrdinalIgnoreCase) ? "ASC" : "DESC";
 
         const string countAll = "SELECT COUNT(*) FROM dbo.ScanRequests;";
-        var countFiltered = "SELECT COUNT(*) FROM dbo.ScanRequests r LEFT JOIN dbo.Agents a ON a.Id = r.AgentId";
-        var dataSql = $@"
+
+        // کوئری شمارش فیلترشده: با @Search خالی (NULL) همه رکوردها شمرده می‌شوند.
+        const string countFiltered = @"
+            SELECT COUNT(*)
+            FROM dbo.ScanRequests r
+            LEFT JOIN dbo.Agents a ON a.Id = r.AgentId
+            WHERE (@Search IS NULL OR a.MachineName LIKE @Search OR r.Status LIKE @Search);";
+
+        const string dataSql = @"
             SELECT r.Id, r.AgentId, a.MachineName AS AgentMachineName,
                    r.Status, r.IsMultiPage, r.CreatedAt, r.CompletedAt,
                    ImageCount = (SELECT COUNT(*) FROM dbo.Images i WHERE i.RequestId = r.Id)
             FROM dbo.ScanRequests r
             LEFT JOIN dbo.Agents a ON a.Id = r.AgentId
-            {{where}}
+            WHERE (@Search IS NULL OR a.MachineName LIKE @Search OR r.Status LIKE @Search)
             ORDER BY {orderColumn} {dir}
             OFFSET @Start ROWS FETCH NEXT @Length ROWS ONLY;";
 
-        string where = "";
-        object?[]? whereParams = null;
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            where = " WHERE a.MachineName LIKE @Search OR r.Status LIKE @Search ";
-            countFiltered += " LEFT JOIN dbo.Agents a2 ON a2.Id = r.AgentId WHERE a2.MachineName LIKE @Search OR r.Status LIKE @Search";
-        }
-        dataSql = dataSql.Replace("{where}", where);
+        // {orderColumn}/{dir} فقط از فهرست سفید بالا می‌آیند — تزریق SQL ممکن نیست.
+        var finalDataSql = dataSql.Replace("{orderColumn}", orderColumn).Replace("{dir}", dir);
 
         try
         {
             using var conn = _factory.CreateConnection();
             var parameters = new DynamicParameters();
-            parameters.Add("@Start", start);
-            parameters.Add("@Length", length);
-            if (!string.IsNullOrWhiteSpace(search))
-                parameters.Add("@Search", $"%{search}%");
+            parameters.Add("@Start", Math.Max(0, start));
+            parameters.Add("@Length", length <= 0 ? 10 : length);
+            parameters.Add("@Search", string.IsNullOrWhiteSpace(search) ? null : $"%{search.Trim()}%");
 
             int total = await conn.ExecuteScalarAsync<int>(countAll);
-            int filtered = string.IsNullOrWhiteSpace(search)
-                ? total
-                : await conn.ExecuteScalarAsync<int>(countFiltered, new { Search = $"%{search}%" });
+            int filtered = await conn.ExecuteScalarAsync<int>(countFiltered, parameters);
 
-            var rows = await conn.QueryAsync<ScanRequestDto>(dataSql, parameters);
+            var rows = await conn.QueryAsync<ScanRequestDto>(finalDataSql, parameters);
             return (rows.AsList(), total, filtered);
         }
         catch (Exception ex)
@@ -171,6 +169,26 @@ public class ScanRequestRepository : IScanRequestRepository
             LogErr(ex);
             return (new List<ScanRequestDto>(), 0, 0);
         }
+    }
+
+    /// <summary>آخرین درخواست‌ها به ترتیب تاریخ ایجاد (برای صفحه اسکن/داشبورد).</summary>
+    public async Task<List<ScanRequestDto>> GetRecentAsync(int take)
+    {
+        const string sql = @"
+            SELECT TOP (@Take)
+                   r.Id, r.AgentId, a.MachineName AS AgentMachineName,
+                   r.Status, r.IsMultiPage, r.CreatedAt, r.CompletedAt,
+                   ImageCount = (SELECT COUNT(*) FROM dbo.Images i WHERE i.RequestId = r.Id)
+            FROM dbo.ScanRequests r
+            LEFT JOIN dbo.Agents a ON a.Id = r.AgentId
+            ORDER BY r.CreatedAt DESC;";
+        try
+        {
+            using var conn = _factory.CreateConnection();
+            var list = await conn.QueryAsync<ScanRequestDto>(sql, new { Take = take <= 0 ? 50 : take });
+            return list.AsList();
+        }
+        catch (Exception ex) { LogErr(ex); return new List<ScanRequestDto>(); }
     }
 
     private void LogErr(Exception ex) => _logger?.LogError(ex, "ScanRequestRepository error");

@@ -16,5 +16,8 @@ public interface IScanRequestRepository
     Task<(List<ScanRequestDto> data, int recordsTotal, int recordsFiltered)> GetDataAsync(
         int start, int length, string? search, int orderColumnIndex, string orderDir);
 
+    /// <summary>آخرین درخواست‌ها (برای داشبورد/صفحه اسکن).</summary>
+    Task<List<ScanRequestDto>> GetRecentAsync(int take);
+
     Task<int> DeleteAsync(Guid id);
 }

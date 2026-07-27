@@ -3,6 +3,7 @@
 @using Microsoft.AspNetCore.SignalR.Client
 @using ScanSystem.Shared
 @using ScanSystem.Shared.Entities
+@implements IAsyncDisposable
 @inject NavigationManager Navigation
 @inject IScanService ScanService
 
@@ -93,7 +94,7 @@
                                 @foreach (var a in agents)
                                 {
                                     <option value="@a.MachineName">
-                                        @a.DisplayName (@a.MachineName) — @(a.IsOnline ? "آنلاین" : "آفلاین")
+                                        @a.MachineName — @(a.IsOnline ? "آنلاین" : "آفلاین")
                                     </option>
                                 }
                             </select>
@@ -103,6 +104,17 @@
                                 </span>
                             </div>
                         }
+                    </div>
+
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="chkMultiPage" @bind="multiPage" />
+                        <label class="form-check-label" for="chkMultiPage">
+                            اسکن چندصفحه‌ای (ADF/Feeder)
+                        </label>
+                        <div class="form-text small">
+                            با فعال بودن این گزینه، Agent تا پایان کاغذ داخل Feeder اسکن می‌کند
+                            و هر صفحه را به‌محض آماده شدن ارسال می‌کند.
+                        </div>
                     </div>
 
                     <div class="d-grid gap-2">
@@ -130,7 +142,7 @@
 
                     <div class="text-muted small">
                         <i class="bi bi-info-circle"></i>
-                        وضعیت فعلی Agent:
+                        وضعیت اتصال به سرور:
                         @if (isConnected)
                         {
                             <span class="text-success">متصل</span>
@@ -148,7 +160,7 @@
         <div class="col-md-8 mb-3">
             <div class="card shadow-sm">
                 <div class="card-header bg-dark text-white d-flex justify-content-between">
-                    <span><i class="bi bi-list-ul"></i> درخواست‌های اسکن</span>
+                    <span><i class="bi bi-list-ul"></i> آخرین درخواست‌های اسکن</span>
                     <span class="badge bg-light text-dark">@(requests?.Count ?? 0)</span>
                 </div>
                 <div class="card-body">
@@ -166,7 +178,7 @@
                         <div class="text-center py-5">
                             <i class="bi bi-inbox display-1 text-muted"></i>
                             <p class="mt-3 text-muted">هنوز درخواست اسکنی ثبت نشده است.</p>
-                            <p class="text-muted small">روی دکمه "شروع اسکن" کلیک کنید.</p>
+                            <p class="text-muted small">روی دکمه «شروع اسکن» کلیک کنید.</p>
                         </div>
                     }
                     else
@@ -177,11 +189,13 @@
                                     <tr>
                                         <th style="width: 50px">#</th>
                                         <th>شناسه</th>
-                                        <th>کلاینت</th>
+                                        <th>ایستگاه کاری</th>
+                                        <th>نوع</th>
                                         <th>وضعیت</th>
+                                        <th>صفحات</th>
                                         <th>تاریخ ایجاد</th>
                                         <th>تاریخ تکمیل</th>
-                                        <th style="width: 200px">عملیات</th>
+                                        <th style="width: 160px">عملیات</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -192,13 +206,24 @@
                                             <td>
                                                 <code class="small">@item.Id.ToString()[..8]</code>
                                             </td>
-                                            <td>@item.ClientId</td>
+                                            <td>@item.AgentMachineName</td>
+                                            <td>
+                                                @if (item.IsMultiPage)
+                                                {
+                                                    <span class="badge bg-info text-dark">چندصفحه‌ای</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-light text-dark border">تک‌صفحه</span>
+                                                }
+                                            </td>
                                             <td>
                                                 <span class="badge @GetStatusBadge(item.Status)">
                                                     <i class="bi bi-@(GetStatusIcon(item.Status))"></i>
                                                     @GetStatusText(item.Status)
                                                 </span>
                                             </td>
+                                            <td><span class="badge bg-secondary">@item.ImageCount</span></td>
                                             <td class="small">@item.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
                                             <td class="small">
                                                 @if (item.CompletedAt.HasValue)
@@ -212,13 +237,9 @@
                                             </td>
                                             <td>
                                                 <div class="btn-group btn-group-sm">
-                                                    @if (item.Status == ScanStatus.Done)
+                                                    @if (item.Status == ScanStatus.Done && item.ImageCount > 0)
                                                     {
-                                                        <a href="/api/document/image/@item.Id" target="_blank"
-                                                           class="btn btn-outline-success" title="مشاهده">
-                                                            <i class="bi bi-eye"></i>
-                                                        </a>
-                                                        <button class="btn btn-outline-info" title="پیش‌نمایش"
+                                                        <button class="btn btn-outline-info" title="پیش‌نمایش صفحه اول"
                                                                 @onclick="() => ShowPreview(item.Id)">
                                                             <i class="bi bi-zoom-in"></i>
                                                         </button>
@@ -234,6 +255,12 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        <div class="text-muted small mt-2">
+                            <i class="bi bi-table"></i>
+                            برای جستجو، صفحه‌بندی و مرتب‌سازی پیشرفته به صفحه
+                            <a href="/requests">درخواست‌های اسکن</a> مراجعه کنید.
+                        </div>
                     }
                 </div>
             </div>
@@ -247,7 +274,7 @@
             <div class="col-12">
                 <div class="card shadow-sm">
                     <div class="card-header bg-info text-white d-flex justify-content-between">
-                        <span><i class="bi bi-image"></i> پیش‌نمایش تصویر</span>
+                        <span><i class="bi bi-image"></i> پیش‌نمایش صفحه اول</span>
                         <button class="btn btn-sm btn-outline-light" @onclick="ClosePreview">
                             <i class="bi bi-x-lg"></i> بستن
                         </button>
@@ -257,11 +284,9 @@
                         {
                             <Skeleton Variant="image" />
                         }
-                        else
-                        {
-                            <img src="@previewImageUrl" class="scan-preview-img img-fluid"
-                                 alt="پیش‌نمایش اسکن" />
-                        }
+                        <img src="@previewImageUrl" class="scan-preview-img img-fluid"
+                             style="@(previewLoading ? "display:none" : "")"
+                             alt="پیش‌نمایش اسکن" @onload="OnPreviewLoaded" />
                     </div>
                 </div>
             </div>
@@ -271,9 +296,10 @@
 
 @code {
     private HubConnection? hubConnection;
-    private List<ScanRequest>? requests;
+    private List<ScanRequestDto>? requests;
     private List<AgentDto>? agents;
     private string selectedMachine = "";
+    private bool multiPage = true;
     private bool isConnected = false;
     private bool isScanning = false;
     private string? message;
@@ -290,7 +316,9 @@
 
     private async Task LoadAgents()
     {
-        agents = await ScanService.GetAgentsAsync();
+        try { agents = await ScanService.GetAgentsAsync(); }
+        catch { agents = new List<AgentDto>(); }
+
         // اگر دستگاه انتخاب‌شده دیگر در لیست نیست یا هنوز چیزی انتخاب نشده، اولین Agent آنلاین را پیش‌فرض می‌گیریم.
         if (agents is not null)
         {
@@ -300,6 +328,12 @@
                 if (firstOnline is not null) selectedMachine = firstOnline.MachineName;
             }
         }
+    }
+
+    private async Task LoadRequests()
+    {
+        try { requests = await ScanService.GetRecentRequestsAsync(50); }
+        catch { requests = new List<ScanRequestDto>(); }
     }
 
     private async Task LoadAll()
@@ -315,6 +349,7 @@
             .WithAutomaticReconnect()
             .Build();
 
+        // لیست درخواست‌ها عوض شد → بازخوانی جدول.
         hubConnection.On("RequestsChanged", async () =>
         {
             await InvokeAsync(async () =>
@@ -324,8 +359,17 @@
             });
         });
 
-        // هر بار که Agentی ثبت/قطع شد، لیست دستگاه‌ها را بازخوانی می‌کنیم.
+        // هر بار که Agentای ثبت/قطع شد، لیست دستگاه‌ها را بازخوانی می‌کنیم.
         hubConnection.On("AgentsChanged", async () =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadAgents();
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On<string, bool>("AgentStatusChanged", async (machineName, online) =>
         {
             await InvokeAsync(async () =>
             {
@@ -344,14 +388,15 @@
             });
         });
 
-        hubConnection.On<Guid, string, string>("ScanCompleted", async (requestId, dataUri, fileName) =>
+        // پایان موفق اسکن (Hub فقط شناسه درخواست را می‌فرستد).
+        hubConnection.On<Guid>("ScanCompleted", async (requestId) =>
         {
-            await InvokeAsync(() =>
+            await InvokeAsync(async () =>
             {
-                message = $"اسکن با موفقیت انجام شد! (فایل: {fileName})";
+                message = $"اسکن با موفقیت انجام شد! (شناسه: {requestId.ToString()[..8]})";
                 messageType = "success";
                 isScanning = false;
-                previewImageUrl = dataUri;
+                await LoadRequests();
                 StateHasChanged();
             });
         });
@@ -360,27 +405,13 @@
         {
             await InvokeAsync(async () =>
             {
+                if (status == ScanStatus.Error)
+                {
+                    message = "اسکن با خطا مواجه شد. لاگ Agent را بررسی کنید.";
+                    messageType = "danger";
+                    isScanning = false;
+                }
                 await LoadRequests();
-                StateHasChanged();
-            });
-        });
-
-        hubConnection.On<string, Guid>("ScanRequested", async (fromClientId, requestId) =>
-        {
-            await InvokeAsync(() =>
-            {
-                message = $"درخواست اسکن جدید از {fromClientId} ثبت شد.";
-                messageType = "info";
-                StateHasChanged();
-            });
-        });
-
-        hubConnection.On<string>("AgentConnected", async (connectionId) =>
-        {
-            await InvokeAsync(() =>
-            {
-                message = $"Agent جدید متصل شد. ({connectionId[..8]}...)";
-                messageType = "success";
                 StateHasChanged();
             });
         });
@@ -430,7 +461,8 @@
 
         try
         {
-            await hubConnection.InvokeAsync("RequestScan", machine);
+            // Hub همیشه هر دو آرگومان را دریافت می‌کند (machineName, isMultiPage).
+            await hubConnection.InvokeAsync("RequestScan", machine, multiPage);
         }
         catch (Exception ex)
         {
@@ -442,27 +474,31 @@
         StateHasChanged();
     }
 
-    private async Task LoadRequests()
-    {
-        requests = await ScanService.GetAllAsync();
-    }
-
     private async Task DeleteRequest(Guid id)
     {
-        await ScanService.DeleteRequestAsync(id);
-        await LoadRequests();
-        message = "درخواست با موفقیت حذف شد.";
-        messageType = "warning";
+        try
+        {
+            await ScanService.DeleteRequestAsync(id);
+            await LoadRequests();
+            message = "درخواست با موفقیت حذف شد.";
+            messageType = "warning";
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا در حذف: {ex.Message}";
+            messageType = "danger";
+        }
     }
 
-    private async Task ShowPreview(Guid requestId)
+    private void ShowPreview(Guid requestId)
     {
-        previewImageUrl = $"/api/document/image/{requestId}";
         previewLoading = true;
-        StateHasChanged();
+        // صفحه اول یک درخواست؛ ts برای جلوگیری از کش مرورگر.
+        previewImageUrl = $"/api/request/{requestId}/page/1?ts={DateTime.Now.Ticks}";
+    }
 
-        //骨架 شبیه‌سازی شده: تا بارگذاری واقعی تصویر skeleton نمایش داده می‌شود
-        await Task.Delay(600);
+    private void OnPreviewLoaded()
+    {
         previewLoading = false;
         StateHasChanged();
     }

@@ -1,0 +1,52 @@
+@page "/requests"
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<PageTitle>درخواست‌های اسکن</PageTitle>
+
+<div class="container-fluid mt-3" dir="rtl">
+    <div class="card shadow-sm">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-check"></i> درخواست‌های اسکن</h5>
+            <span class="badge bg-light text-dark">DataTables — Server-side</span>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                <i class="bi bi-info-circle"></i>
+                جستجو، صفحه‌بندی و مرتب‌سازی به‌صورت Server-side انجام می‌شود
+                (endpoint: <code>/api/requests/data</code>).
+            </p>
+
+            <table id="requestsTable" class="table table-striped table-hover align-middle" style="width:100%">
+                <thead class="table-dark">
+                    <tr>
+                        <th>تاریخ ایجاد</th>
+                        <th>ایستگاه کاری</th>
+                        <th>وضعیت</th>
+                        <th>نوع</th>
+                        <th>تاریخ تکمیل</th>
+                        <th>صفحات</th>
+                    </tr>
+                </thead>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // راه‌اندازی DataTables با منبع داده Server-side.
+            await JS.InvokeVoidAsync("scanSystem.initRequestsTable", "/api/requests/data");
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await JS.InvokeVoidAsync("scanSystem.destroyRequestsTable"); }
+        catch { /* ممکن است circuit قبلاً بسته شده باشد */ }
+    }
+}

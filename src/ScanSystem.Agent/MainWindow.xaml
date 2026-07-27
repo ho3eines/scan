@@ -1,7 +1,7 @@
 <Window x:Class="ScanSystem.Agent.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ScanSystem Agent" Height="500" Width="400"
+        Title="ScanSystem Agent" Height="560" Width="420"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanMinimize">
     <Grid Margin="15">
@@ -29,7 +29,7 @@
                 <TextBox Grid.Column="1" x:Name="txtServerUrl" Text="http://localhost:5002/scanhub"
                          VerticalAlignment="Center"/>
                 <Button Grid.Column="2" x:Name="btnConnect" Content="اتصال"
-                        Click="BtnConnect_Click" Width="70" Margin="10,0,0,0"/>
+                        Click="BtnConnect_Click" Width="80" Margin="10,0,0,0"/>
             </Grid>
         </GroupBox>
 
@@ -37,7 +37,8 @@
         <GroupBox Grid.Row="2" Header="وضعیت" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock x:Name="txtStatus" Text="آفلاین" Foreground="Red" FontWeight="Bold"/>
-                <TextBlock x:Name="txtLastScan" Text="" Foreground="Gray" Margin="0,5,0,0"/>
+                <TextBlock x:Name="txtScanner" Text="" Foreground="Gray" Margin="0,3,0,0" FontSize="11"/>
+                <TextBlock x:Name="txtLastScan" Text="" Foreground="Gray" Margin="0,3,0,0" FontSize="11"/>
             </StackPanel>
         </GroupBox>
 
@@ -47,8 +48,8 @@
                      TextWrapping="Wrap" FontFamily="Consolas" FontSize="11"/>
         </GroupBox>
 
-        <!-- دکمه اسکن -->
-        <Button Grid.Row="4" x:Name="btnScan" Content="شروع اسکن" Height="45"
+        <!-- دکمه اسکن دستی -->
+        <Button Grid.Row="4" x:Name="btnScan" Content="اسکن دستی (تک‌صفحه)" Height="45"
                 FontSize="14" FontWeight="Bold" Click="BtnScan_Click"
                 IsEnabled="False" Background="#28a745" Foreground="White"/>
     </Grid>

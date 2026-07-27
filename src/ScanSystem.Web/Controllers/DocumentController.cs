@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using Microsoft.AspNetCore.Mvc;
+using ScanSystem.Shared.Data;
 using ScanSystem.Shared.Entities;
 using ScanSystem.Web.Services;
 
@@ -10,11 +11,13 @@ namespace ScanSystem.Web.Controllers;
 public class DocumentController : ControllerBase
 {
     private readonly IScanService _service;
+    private readonly IWebHostEnvironment _env;
     private readonly ILogger<DocumentController> _logger;
 
-    public DocumentController(IScanService service, ILogger<DocumentController> logger)
+    public DocumentController(IScanService service, IWebHostEnvironment env, ILogger<DocumentController> logger)
     {
         _service = service;
+        _env = env;
         _logger = logger;
     }
 
@@ -28,14 +31,61 @@ public class DocumentController : ControllerBase
         return Ok(agents);
     }
 
-    /// <summary>حذف یک Agent (غیرفعال‌سازی در UI).</summary>
+    /// <summary>حذف یک Agent (از دیتابیس و نگاشت اتصال).</summary>
     [HttpDelete("agents/{id:guid}")]
     public async Task<IActionResult> DeleteAgent(Guid id)
     {
-        // از طریق سرویس: حذف از دیتابیس.
-        // NOTE: Agent در صورت اجرای دوباره خودش ثبت می‌شود.
-        await _service.SetAgentOfflineByMachineAsync(id.ToString());
+        await _service.DeleteAgentAsync(id);
         return Ok();
+    }
+
+    /// <summary>
+    /// دانلود خروجی ZIP برنامه Agent.
+    /// فایل باید در {ContentRoot}/downloads/ScanSystem.Agent.zip قرار گیرد
+    /// (با `dotnet publish -c Release` از پروژه Agent ساخته و سپس ZIP شود).
+    /// </summary>
+    [HttpGet("agent/download.zip")]
+    public IActionResult DownloadAgentZip()
+    {
+        var path = Path.Combine(_env.ContentRootPath, "downloads", "ScanSystem.Agent.zip");
+        if (!System.IO.File.Exists(path))
+        {
+            return NotFound(new
+            {
+                message = "فایل ScanSystem.Agent.zip هنوز در پوشه downloads سرور قرار نگرفته است. " +
+                          "پروژه ScanSystem.Agent را روی ویندوز Publish کرده و خروجی را ZIP کنید، " +
+                          "سپس در پوشه downloads کنار فایل‌های اجرایی وب قرار دهید. " +
+                          "برای جزئیات، صفحه «راهنمای نصب Agent» را ببینید."
+            });
+        }
+        return PhysicalFile(path, "application/zip", "ScanSystem.Agent.zip");
+    }
+
+    // ───────────────────────── درخواست‌های اسکن (DataTables Server-side) ─────────────────────────
+
+    /// <summary>
+    /// داده لیست درخواست‌ها برای DataTables (Server-side Processing).
+    /// پارامترها مطابق قرارداد پیش‌فرض DataTables: draw, start, length, search[value], order[0][column], order[0][dir].
+    /// </summary>
+    [HttpGet("requests/data")]
+    public async Task<IActionResult> GetRequestsData(
+        [FromQuery] int draw = 1,
+        [FromQuery] int start = 0,
+        [FromQuery] int length = 10,
+        [FromQuery(Name = "search[value]")] string? search = null,
+        [FromQuery(Name = "order[0][column]")] int orderColumn = 0,
+        [FromQuery(Name = "order[0][dir]")] string orderDir = "desc")
+    {
+        var (data, recordsTotal, recordsFiltered) =
+            await _service.GetRequestsDataAsync(start, length, search, orderColumn, orderDir);
+
+        return Ok(new
+        {
+            draw,
+            recordsTotal,
+            recordsFiltered,
+            data
+        });
     }
 
     // ───────────────────────── گروه‌ها ─────────────────────────
@@ -61,7 +111,7 @@ public class DocumentController : ControllerBase
         return Ok();
     }
 
-    /// <summary>تخصیص یک تصویر به یک گروه (با درگ و دراپ).</summary>
+    /// <summary>تخصیص یک تصویر به یک گروه (با درگ و دراپ یا از مودال گالری).</summary>
     [HttpPost("images/assignGroup")]
     public async Task<IActionResult> AssignGroup([FromBody] AssignGroupRequest req)
     {
@@ -93,14 +143,13 @@ public class DocumentController : ControllerBase
         return File(doc.Data, doc.ContentType, doc.FileName);
     }
 
-    /// <summary>Thumbnail تصویر (برای گالری). از HasThumbnail برای fallback استفاده کن.</summary>
+    /// <summary>Thumbnail تصویر (برای گالری). اگر Thumbnail موجود نباشد، تصویر اصلی برگردانده می‌شود.</summary>
     [HttpGet("images/thumb/{id:guid}")]
     public async Task<IActionResult> GetThumbnail(Guid id)
     {
         var data = await _service.GetImageThumbnailAsync(id);
         if (data is null || data.Length == 0)
         {
-            // Fallback به تصویر اصلی با کیفیت پایین
             var full = await _service.GetImageDownloadAsync(id);
             if (full is null) return NotFound();
             return File(full.Data, full.ContentType);
@@ -116,7 +165,47 @@ public class DocumentController : ControllerBase
         return Ok();
     }
 
-    /// <summary>تصاویر یک درخواست (با order صفحه).</summary>
+    /// <summary>چرخش تصویر (90/180/270) — Thumbnail هم بازسازی می‌شود.</summary>
+    [HttpPost("images/{id:guid}/rotate")]
+    public async Task<IActionResult> RotateImage(Guid id, [FromBody] RotateRequest req)
+    {
+        var angle = req?.Angle ?? 90;
+        if (angle is not (90 or 180 or 270))
+            return BadRequest("زاویه باید یکی از مقادیر 90، 180 یا 270 باشد.");
+
+        var doc = await _service.GetImageDownloadAsync(id);
+        if (doc is null) return NotFound();
+
+        var rotated = ThumbnailGenerator.Rotate(doc.Data, angle);
+        if (rotated is null)
+            return StatusCode(StatusCodes.Status500InternalServerError, "خطا در پردازش تصویر (احتمالاً فرمت پشتیبانی‌نشده).");
+
+        await _service.UpdateImageAsync(id, rotated, thumbnail: null);
+        return Ok(new { id, angle });
+    }
+
+    /// <summary>جایگزینی تصویر با فایل آپلودشده (multipart/form-data، فیلد file).</summary>
+    [HttpPost("images/{id:guid}/replace")]
+    [RequestSizeLimit(60 * 1024 * 1024)]
+    public async Task<IActionResult> ReplaceImage(Guid id)
+    {
+        var doc = await _service.GetImageDownloadAsync(id);
+        if (doc is null) return NotFound();
+
+        if (Request.Form.Files.Count == 0)
+            return BadRequest("فایلی ارسال نشده است.");
+
+        var file = Request.Form.Files[0];
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        var data = ms.ToArray();
+        if (data.Length == 0) return BadRequest("فایل خالی است.");
+
+        await _service.UpdateImageAsync(id, data, thumbnail: null);
+        return Ok(new { id, size = data.Length });
+    }
+
+    /// <summary>تصاویر یک درخواست (با ترتیب صفحه).</summary>
     [HttpGet("request/{requestId:guid}/images")]
     public async Task<IActionResult> GetImagesByRequest(Guid requestId)
     {
@@ -125,7 +214,7 @@ public class DocumentController : ControllerBase
         return Ok(images.Select(i => new { i.Id, i.RequestId, i.FileName, i.PageNumber }));
     }
 
-    /// <summary>بایت‌های خام یک تصویر مشخص.</summary>
+    /// <summary>بایت‌های خام یک صفحه مشخص از یک درخواست.</summary>
     [HttpGet("request/{requestId:guid}/page/{pageNumber:int}")]
     public async Task<IActionResult> GetRequestPage(Guid requestId, int pageNumber)
     {
@@ -201,6 +290,11 @@ public class AssignGroupRequest
 {
     public Guid ImageId { get; set; }
     public string? GroupName { get; set; }
+}
+
+public class RotateRequest
+{
+    public int Angle { get; set; } = 90;
 }
 
 public class ZipRequest

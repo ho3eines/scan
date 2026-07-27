@@ -150,8 +150,8 @@
     private string messageType = "info";
     private HubConnection? hub;
 
-    /// <summary>آدرس دانلود Agent (ZIP). قابل تنظیم بر اساس سرور.</summary>
-    private string AgentDownloadUrl => "/agent/download.zip";
+    /// <summary>آدرس دانلود Agent (ZIP) — endpoint در DocumentController.</summary>
+    private string AgentDownloadUrl => "/api/agent/download.zip";
 
     protected override async Task OnInitializedAsync()
     {

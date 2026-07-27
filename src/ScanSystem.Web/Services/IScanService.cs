@@ -15,6 +15,8 @@ public interface IScanService
     Task<Guid> UpsertAgentAsync(string machineName, string connectionId);
     Task SetAgentOfflineByMachineAsync(string machineName);
     Task<List<AgentDto>> GetAgentsAsync();
+    /// <summary>حذف کامل یک Agent (از دیتابیس و از نگاشت اتصال در حافظه).</summary>
+    Task<int> DeleteAgentAsync(Guid id);
 
     // ── درخواست‌های اسکن ──
     Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage);
@@ -25,6 +27,8 @@ public interface IScanService
     /// <summary>کوئری Server-side DataTable.</summary>
     Task<(List<ScanRequestDto> data, int recordsTotal, int recordsFiltered)> GetRequestsDataAsync(
         int start, int length, string? search, int orderColumnIndex, string orderDir);
+    /// <summary>آخرین درخواست‌ها برای صفحه اسکن.</summary>
+    Task<List<ScanRequestDto>> GetRecentRequestsAsync(int take);
 
     // ── تصاویر / گالری ──
     /// <summary>ذخیره یک صفحه اسکن‌شده + ساخت Thumbnail خودکار.</summary>

@@ -1,0 +1,79 @@
+@page "/setup-guide"
+
+<PageTitle>راهنمای نصب Agent</PageTitle>
+
+<div class="container mt-3" dir="rtl">
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="bi bi-download"></i> راهنمای نصب و راه‌اندازی ScanSystem Agent</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">
+                برنامه Agent روی هر ایستگاه کاری (کامپیوتر متصل به اسکنر) نصب می‌شود،
+                خودش را با <strong>نام ماشین (Machine Name)</strong> به سرور معرفی می‌کند
+                و درخواست‌های اسکن را از طریق SignalR دریافت و اجرا می‌کند.
+            </p>
+
+            <hr />
+
+            <h6 class="fw-bold mb-3"><span class="badge bg-primary">۱</span> دانلود برنامه</h6>
+            <div class="alert alert-light border">
+                <a href="/api/agent/download.zip" class="btn btn-success">
+                    <i class="bi bi-file-earmark-zip"></i> دانلود ScanSystem.Agent.zip
+                </a>
+                <p class="small text-muted mt-2 mb-0">
+                    اگر این دکمه خطای 404 داد، یعنی فایل ZIP هنوز روی سرور قرار نگرفته است.
+                    در این حالت طبق روش ClickOnce یا ساخت دستی زیر عمل کنید.
+                </p>
+            </div>
+
+            <h6 class="fw-bold mb-3"><span class="badge bg-primary">۲</span> نصب (روش ZIP)</h6>
+            <ol>
+                <li>فایل ZIP را روی کامپیوتر کلاینت از حالت فشرده خارج کنید (مثلاً <code>C:\ScanAgent\</code>).</li>
+                <li>
+                    فایل <code>agentsettings.json</code> را باز کنید و آدرس سرور را تنظیم کنید:
+                    <pre class="bg-light border rounded p-2 mt-2" dir="ltr">{
+  "ServerUrl": "http://SERVER-IP:5002/scanhub",
+  "AutoConnect": true,
+  "StartMinimized": true,
+  "AutoStart": true,
+  "MaxPages": 50
+}</pre>
+                </li>
+                <li>
+                    برنامه <code>ScanSystem.Agent.exe</code> را اجرا کنید.
+                    برای اجرا در حالت Tray (بدون نمایش پنجره):
+                    <code dir="ltr">ScanSystem.Agent.exe --tray</code>
+                </li>
+                <li>
+                    گزینه «شروع خودکار با ویندوز» از منوی Tray یا با
+                    <code>"AutoStart": true</code> در تنظیمات فعال می‌شود.
+                </li>
+            </ol>
+
+            <h6 class="fw-bold mb-3"><span class="badge bg-primary">۳</span> نصب (روش ClickOnce)</h6>
+            <ol>
+                <li>
+                    در ماشین توسعه (ویندوز) از Publish Profile آماده استفاده کنید:
+                    <code dir="ltr">dotnet publish src\ScanSystem.Agent -c Release /p:PublishProfile=ClickOnce</code>
+                    یا از طریق Visual Studio: راست‌کلیک روی پروژه Agent ← Publish ← پروفایل <strong>ClickOnce</strong>.
+                </li>
+                <li>محتوای پوشه خروجی (<code>publish/client</code>) را روی یک وب‌سرور یا شبکه داخلی قرار دهید.</li>
+                <li>کلاینت‌ها با باز کردن <code>ScanSystem.Agent.application</code> برنامه را نصب می‌کنند؛ بروزرسانی‌های بعدی خودکار است.</li>
+            </ol>
+
+            <h6 class="fw-bold mb-3"><span class="badge bg-primary">۴</span> بررسی اتصال</h6>
+            <ol>
+                <li>پس از اجرا، آیکون Agent در Tray ویندوز ظاهر می‌شود.</li>
+                <li>در صفحه <a href="/agents">مدیریت Agentها</a> باید نام ماشین با وضعیت «آنلاین» دیده شود.</li>
+                <li>اگر اسکنر WIA نصب باشد، اسکن واقعی انجام می‌شود؛ در غیر این صورت یک صفحه شبیه‌سازی‌شده ارسال می‌شود (برای تست).</li>
+            </ol>
+
+            <div class="alert alert-warning small">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong>نکته:</strong> اسکن چندصفحه‌ای (ADF) به درایور WIA اسکنر وابسته است.
+                حداکثر تعداد صفحات از طریق <code>MaxPages</code> در تنظیمات Agent کنترل می‌شود.
+            </div>
+        </div>
+    </div>
+</div>
