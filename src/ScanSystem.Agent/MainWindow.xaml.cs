@@ -122,8 +122,9 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log($"خطای اتصال: {ex.Message}");
-            MessageBox.Show($"خطا در اتصال:\n{ex.Message}", "خطا",
+            System.Windows.MessageBox.Show($"خطا در اتصال:\n{ex.Message}", "خطا",
                 MessageBoxButton.OK, MessageBoxImage.Error);
+
         }
         finally
         {
@@ -337,7 +338,7 @@ public partial class MainWindow : Window
             _tray = null;
         }
         try { _connection?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3)); } catch { }
-        Application.Current.Shutdown();
+        System.Windows.Application.Current.Shutdown();
     }
 
     // ───────────────────────── چرخه عمر پنجره ─────────────────────────

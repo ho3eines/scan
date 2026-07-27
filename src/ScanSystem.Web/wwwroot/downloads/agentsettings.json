@@ -1,0 +1,7 @@
+{
+  "ServerUrl": "http://localhost:5002//scanhub",
+  "AutoConnect": true,
+  "StartMinimized": true,
+  "AutoStart": true,
+  "MaxPages": 50
+}
