@@ -1,9 +1,25 @@
 // ============================================================================
-// ScanSystem — توابع کمکی JavaScript خالص (بدون jQuery / بدون کتابخانه جانبی)
+// ScanSystem — توابع کمکی JavaScript
 // ============================================================================
 window.scanSystem = {
 
-    // دانلود فایل از یک endpoint با POST (مثلاً ZIP دسته‌ای گالری)
+    // دانلود فایل از یک URL یا Blob
+    download: function (href, fileName) {
+        try {
+            var a = document.createElement('a');
+            a.href = href;
+            a.download = fileName || 'download.bin';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            return true;
+        } catch (e) {
+            console.error('download failed:', e);
+            return false;
+        }
+    },
+
+    // دانلود با POST و JSON body (برای ZIP)
     postDownload: async function (url, bodyJson, fileName) {
         try {
             const resp = await fetch(url, {
