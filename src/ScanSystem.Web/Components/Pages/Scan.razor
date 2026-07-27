@@ -1,0 +1,518 @@
+@page "/scan"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.SignalR.Client
+@using ScanSystem.Shared
+@using ScanSystem.Shared.Entities
+@inject NavigationManager Navigation
+@inject IScanService ScanService
+
+<PageTitle>مدیریت اسکن</PageTitle>
+
+@if (isScanning)
+{
+    <LoadingOverlay Title="در حال اسکن..." Subtitle="لطفاً سند را در اسکنر قرار دهید" />
+}
+
+<div class="container-fluid mt-3" dir="rtl">
+    <!-- هدر -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-0">
+                                <i class="bi bi-camera-fill text-primary"></i>
+                                مدیریت اسکن مدارک
+                            </h5>
+                        </div>
+                        <div>
+                            @if (isConnected)
+                            {
+                                <span class="badge bg-success">
+                                    <i class="bi bi-wifi"></i> آنلاین
+                                </span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-wifi-off"></i> آفلاین
+                                </span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- پیام‌ها -->
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="row mb-3">
+            <div class="col-12">
+                <div class="alert alert-@messageType alert-dismissible fade show" role="alert">
+                    <i class="bi bi-@(messageType == "success" ? "check-circle" : messageType == "danger" ? "exclamation-triangle" : "info-circle")"></i>
+                    @message
+                    <button type="button" class="btn-close" @onclick="() => message = null"></button>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row">
+        <!-- پنل کنترل -->
+        <div class="col-md-4 mb-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-dark text-white">
+                    <i class="bi bi-gear"></i> کنترل اسکن
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">انتخاب دستگاه (Agent)</label>
+                        @if (agents == null)
+                        {
+                            <select class="form-control" disabled>
+                                <option>در حال بارگذاری...</option>
+                            </select>
+                        }
+                        else if (agents.Count == 0)
+                        {
+                            <select class="form-control" disabled>
+                                <option>هیچ Agentی ثبت نشده است</option>
+                            </select>
+                            <div class="form-text text-danger small mt-1">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                ابتدا Agent را روی دستگاه کلاینت اجرا و متصل کنید.
+                            </div>
+                        }
+                        else
+                        {
+                            <select class="form-control" @bind="selectedMachine">
+                                <option value="">— انتخاب کنید —</option>
+                                @foreach (var a in agents)
+                                {
+                                    <option value="@a.MachineName">
+                                        @a.DisplayName (@a.MachineName) — @(a.IsOnline ? "آنلاین" : "آفلاین")
+                                    </option>
+                                }
+                            </select>
+                            <div class="form-text small mt-1">
+                                <span class="badge @(isConnected ? "bg-success" : "bg-secondary")">
+                                    @(agents.Count(x => x.IsOnline)) Agent آنلاین
+                                </span>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success btn-lg" @onclick="StartScan"
+                                disabled="@(!isConnected || isScanning || string.IsNullOrEmpty(selectedMachine))">
+                            @if (isScanning)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                                <span>در حال اسکن...</span>
+                            }
+                            else
+                            {
+                                <i class="bi bi-camera me-2"></i>
+                                <span>شروع اسکن</span>
+                            }
+                        </button>
+
+                        <button class="btn btn-outline-primary" @onclick="LoadAll">
+                            <i class="bi bi-arrow-clockwise me-2"></i>
+                            بروزرسانی
+                        </button>
+                    </div>
+
+                    <hr />
+
+                    <div class="text-muted small">
+                        <i class="bi bi-info-circle"></i>
+                        وضعیت فعلی Agent:
+                        @if (isConnected)
+                        {
+                            <span class="text-success">متصل</span>
+                        }
+                        else
+                        {
+                            <span class="text-danger">قطع</span>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- جدول درخواست‌ها -->
+        <div class="col-md-8 mb-3">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white d-flex justify-content-between">
+                    <span><i class="bi bi-list-ul"></i> درخواست‌های اسکن</span>
+                    <span class="badge bg-light text-dark">@(requests?.Count ?? 0)</span>
+                </div>
+                <div class="card-body">
+                    @if (requests == null)
+                    {
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">در حال بارگذاری...</span>
+                            </div>
+                            <p class="mt-2 text-muted">در حال بارگذاری...</p>
+                        </div>
+                    }
+                    else if (requests.Count == 0)
+                    {
+                        <div class="text-center py-5">
+                            <i class="bi bi-inbox display-1 text-muted"></i>
+                            <p class="mt-3 text-muted">هنوز درخواست اسکنی ثبت نشده است.</p>
+                            <p class="text-muted small">روی دکمه "شروع اسکن" کلیک کنید.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped align-middle">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="width: 50px">#</th>
+                                        <th>شناسه</th>
+                                        <th>کلاینت</th>
+                                        <th>وضعیت</th>
+                                        <th>تاریخ ایجاد</th>
+                                        <th>تاریخ تکمیل</th>
+                                        <th style="width: 200px">عملیات</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var (item, index) in requests.Select((r, i) => (r, i)))
+                                    {
+                                        <tr class="@GetRowClass(item.Status)">
+                                            <td>@(index + 1)</td>
+                                            <td>
+                                                <code class="small">@item.Id.ToString()[..8]</code>
+                                            </td>
+                                            <td>@item.ClientId</td>
+                                            <td>
+                                                <span class="badge @GetStatusBadge(item.Status)">
+                                                    <i class="bi bi-@(GetStatusIcon(item.Status))"></i>
+                                                    @GetStatusText(item.Status)
+                                                </span>
+                                            </td>
+                                            <td class="small">@item.CreatedAt.ToString("yyyy/MM/dd HH:mm")</td>
+                                            <td class="small">
+                                                @if (item.CompletedAt.HasValue)
+                                                {
+                                                    @item.CompletedAt.Value.ToString("yyyy/MM/dd HH:mm")
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm">
+                                                    @if (item.Status == ScanStatus.Done)
+                                                    {
+                                                        <a href="/api/document/image/@item.Id" target="_blank"
+                                                           class="btn btn-outline-success" title="مشاهده">
+                                                            <i class="bi bi-eye"></i>
+                                                        </a>
+                                                        <button class="btn btn-outline-info" title="پیش‌نمایش"
+                                                                @onclick="() => ShowPreview(item.Id)">
+                                                            <i class="bi bi-zoom-in"></i>
+                                                        </button>
+                                                    }
+                                                    <button class="btn btn-outline-danger" title="حذف"
+                                                            @onclick="() => DeleteRequest(item.Id)">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- پیش‌نمایش تصویر -->
+    @if (previewImageUrl != null)
+    {
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-info text-white d-flex justify-content-between">
+                        <span><i class="bi bi-image"></i> پیش‌نمایش تصویر</span>
+                        <button class="btn btn-sm btn-outline-light" @onclick="ClosePreview">
+                            <i class="bi bi-x-lg"></i> بستن
+                        </button>
+                    </div>
+                    <div class="card-body text-center">
+                        @if (previewLoading)
+                        {
+                            <Skeleton Variant="image" />
+                        }
+                        else
+                        {
+                            <img src="@previewImageUrl" class="scan-preview-img img-fluid"
+                                 alt="پیش‌نمایش اسکن" />
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private HubConnection? hubConnection;
+    private List<ScanRequest>? requests;
+    private List<AgentDto>? agents;
+    private string selectedMachine = "";
+    private bool isConnected = false;
+    private bool isScanning = false;
+    private string? message;
+    private string messageType = "info";
+    private string? previewImageUrl;
+    private bool previewLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRequests();
+        await LoadAgents();
+        await ConnectToHub();
+    }
+
+    private async Task LoadAgents()
+    {
+        agents = await ScanService.GetAgentsAsync();
+        // اگر دستگاه انتخاب‌شده دیگر در لیست نیست یا هنوز چیزی انتخاب نشده، اولین Agent آنلاین را پیش‌فرض می‌گیریم.
+        if (agents is not null)
+        {
+            if (string.IsNullOrEmpty(selectedMachine) || !agents.Any(a => a.MachineName == selectedMachine))
+            {
+                var firstOnline = agents.FirstOrDefault(a => a.IsOnline);
+                if (firstOnline is not null) selectedMachine = firstOnline.MachineName;
+            }
+        }
+    }
+
+    private async Task LoadAll()
+    {
+        await LoadRequests();
+        await LoadAgents();
+    }
+
+    private async Task ConnectToHub()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/scanhub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hubConnection.On("RequestsChanged", async () =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadRequests();
+                StateHasChanged();
+            });
+        });
+
+        // هر بار که Agentی ثبت/قطع شد، لیست دستگاه‌ها را بازخوانی می‌کنیم.
+        hubConnection.On("AgentsChanged", async () =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadAgents();
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On<List<AgentDto>>("AgentsList", async (list) =>
+        {
+            await InvokeAsync(async () =>
+            {
+                agents = list;
+                await LoadAgents(); // برای پیش‌فرض‌گذاری انتخاب
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On<Guid, string, string>("ScanCompleted", async (requestId, dataUri, fileName) =>
+        {
+            await InvokeAsync(() =>
+            {
+                message = $"اسکن با موفقیت انجام شد! (فایل: {fileName})";
+                messageType = "success";
+                isScanning = false;
+                previewImageUrl = dataUri;
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On<Guid, string>("StatusChanged", async (requestId, status) =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadRequests();
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On<string, Guid>("ScanRequested", async (fromClientId, requestId) =>
+        {
+            await InvokeAsync(() =>
+            {
+                message = $"درخواست اسکن جدید از {fromClientId} ثبت شد.";
+                messageType = "info";
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.On<string>("AgentConnected", async (connectionId) =>
+        {
+            await InvokeAsync(() =>
+            {
+                message = $"Agent جدید متصل شد. ({connectionId[..8]}...)";
+                messageType = "success";
+                StateHasChanged();
+            });
+        });
+
+        hubConnection.Closed += async _ =>
+        {
+            isConnected = false;
+            await InvokeAsync(StateHasChanged);
+        };
+
+        hubConnection.Reconnected += _ =>
+        {
+            isConnected = true;
+            return Task.CompletedTask;
+        };
+
+        try
+        {
+            await hubConnection.StartAsync();
+            isConnected = true;
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا در اتصال به سرور: {ex.Message}";
+            messageType = "danger";
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task StartScan()
+    {
+        if (hubConnection is null || !isConnected) return;
+        if (string.IsNullOrWhiteSpace(selectedMachine))
+        {
+            message = "ابتدا یک دستگاه (Agent) را انتخاب کنید.";
+            messageType = "danger";
+            StateHasChanged();
+            return;
+        }
+
+        var machine = selectedMachine;
+        isScanning = true;
+        message = $"درخواست اسکن برای «{machine}» ارسال شد...";
+        messageType = "info";
+        StateHasChanged();
+
+        try
+        {
+            await hubConnection.InvokeAsync("RequestScan", machine);
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا در ارسال درخواست: {ex.Message}";
+            messageType = "danger";
+            isScanning = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task LoadRequests()
+    {
+        requests = await ScanService.GetAllAsync();
+    }
+
+    private async Task DeleteRequest(Guid id)
+    {
+        await ScanService.DeleteRequestAsync(id);
+        await LoadRequests();
+        message = "درخواست با موفقیت حذف شد.";
+        messageType = "warning";
+    }
+
+    private async Task ShowPreview(Guid requestId)
+    {
+        previewImageUrl = $"/api/document/image/{requestId}";
+        previewLoading = true;
+        StateHasChanged();
+
+        //骨架 شبیه‌سازی شده: تا بارگذاری واقعی تصویر skeleton نمایش داده می‌شود
+        await Task.Delay(600);
+        previewLoading = false;
+        StateHasChanged();
+    }
+
+    private void ClosePreview()
+    {
+        previewImageUrl = null;
+        previewLoading = false;
+    }
+
+    private string GetStatusBadge(string status) => status switch
+    {
+        ScanStatus.Pending => "bg-secondary",
+        ScanStatus.Processing => "bg-warning text-dark",
+        ScanStatus.Done => "bg-success",
+        ScanStatus.Error => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private string GetStatusIcon(string status) => status switch
+    {
+        ScanStatus.Pending => "clock",
+        ScanStatus.Processing => "arrow-repeat",
+        ScanStatus.Done => "check-circle",
+        ScanStatus.Error => "exclamation-triangle",
+        _ => "question-circle"
+    };
+
+    private string GetStatusText(string status) => status switch
+    {
+        ScanStatus.Pending => "در انتظار",
+        ScanStatus.Processing => "در حال پردازش",
+        ScanStatus.Done => "انجام شد",
+        ScanStatus.Error => "خطا",
+        _ => status
+    };
+
+    private string GetRowClass(string status) => status switch
+    {
+        ScanStatus.Processing => "table-warning",
+        ScanStatus.Done => "table-success",
+        ScanStatus.Error => "table-danger",
+        _ => ""
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hubConnection is not null)
+        {
+            await hubConnection.DisposeAsync();
+        }
+    }
+}

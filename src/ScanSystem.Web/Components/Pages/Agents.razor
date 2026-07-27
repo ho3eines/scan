@@ -1,0 +1,228 @@
+@page "/agents"
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.SignalR.Client
+@using ScanSystem.Shared.Entities
+@inject NavigationManager Navigation
+@inject IScanService ScanService
+
+<PageTitle>مدیریت Agentها</PageTitle>
+
+<div class="container-fluid mt-3" dir="rtl">
+    <!-- هدر -->
+    <div class="card shadow-sm mb-3">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-pc-display"></i> مدیریت ایستگاه‌های کاری (Agent)</h5>
+            <span class="badge bg-light text-dark">@agents?.Count ?? 0</span>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                <i class="bi bi-info-circle"></i>
+                هر کامپیوتر با نصب و اجرای برنامه Agent خودش را در این لیست ثبت می‌کند.
+                Agent باید برنامه ScanSystem Agent را اجرا کرده و به سرور متصل باشد.
+            </p>
+
+            @if (agents == null)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-2 text-muted">در حال بارگذاری...</p>
+                </div>
+            }
+            else if (agents.Count == 0)
+            {
+                <div class="text-center py-5">
+                    <i class="bi bi-hdd-stack display-1 text-muted"></i>
+                    <p class="mt-3 text-muted">هنوز هیچ Agent ای ثبت نشده است.</p>
+                    <p class="text-muted small">
+                        برنامه Agent را روی کامپیوترهای مورد نظر نصب و اجرا کنید.
+                    </p>
+                    <a href="/setup-guide" class="btn btn-outline-primary">
+                        <i class="bi bi-download"></i> راهنمای نصب Agent
+                    </a>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle" id="agentsTable">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>#</th>
+                                <th>نام ماشین</th>
+                                <th>وضعیت</th>
+                                <th>آخرین حضور</th>
+                                <th style="width: 280px">عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{ int index = 0; }
+                            @foreach (var agent in agents)
+                            {
+                                index++;
+                                <tr class="@(agent.IsOnline ? "table-success" : "table-light")">
+                                    <td>@index</td>
+                                    <td>
+                                        <strong>@agent.MachineName</strong>
+                                        @if (agent.IsOnline)
+                                        {
+                                            <span class="badge bg-success ms-1">آنلاین</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary ms-1">آفلاین</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="agent-dot @(agent.IsOnline ? "online" : "offline") d-inline-block me-1"
+                                              style="width:12px;height:12px;border-radius:50%;background:@(agent.IsOnline ? "#28a745" : "#dc3545")"></span>
+                                        @(agent.IsOnline ? "آنلاین" : "آفلاین")
+                                    </td>
+                                    <td class="small">
+                                        @if (agent.LastSeen.HasValue)
+                                        {
+                                            @agent.LastSeen.Value.ToString("yyyy/MM/dd HH:mm")
+                                            <span class="text-muted ms-1">
+                                                (@((DateTime.Now - agent.LastSeen.Value).TotalMinutes.ToString("F0")) دقیقه پیش)
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">—</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="btn-group btn-group-sm">
+                                            @if (agent.IsOnline)
+                                            {
+                                                <button class="btn btn-success btn-sm" disabled
+                                                        title="Agent آنلاین">
+                                                    <i class="bi bi-check-circle"></i> متصل
+                                                </button>
+                                                <button class="btn btn-outline-danger btn-sm"
+                                                        @onclick="() => DeactivateAgent(agent.MachineName)"
+                                                        title="غیرفعال کردن Agent">
+                                                    <i class="bi bi-slash-circle"></i> غیرفعال
+                                                </button>
+                                            }
+                                            else
+                                            {
+                                                <a href="@AgentDownloadUrl" class="btn btn-outline-primary btn-sm"
+                                                   title="دانلود Agent (ZIP)">
+                                                    <i class="bi bi-download"></i> دانلود
+                                                </a>
+                                                <button class="btn btn-outline-secondary btn-sm" disabled
+                                                        title="Agent آفلاین">
+                                                    <i class="bi bi-plug"></i> قطع
+                                                </button>
+                                            }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-3 alert alert-info small">
+                    <i class="bi bi-download"></i>
+                    <strong>دانلود Agent:</strong>
+                    <a href="@AgentDownloadUrl" class="alert-link">دانلود نسخه ZIP</a>
+                    &nbsp;|&nbsp;
+                    <span>همچنین Agent به‌صورت ClickOnce در پوشه Publish/client در دسترس است.</span>
+                </div>
+            }
+        </div>
+    </div>
+
+    @* پیام *@
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="alert alert-@messageType alert-dismissible fade show" role="alert">
+            @message
+            <button type="button" class="btn-close" @onclick="() => message = null"></button>
+        </div>
+    }
+</div>
+
+@code {
+    private List<AgentDto>? agents;
+    private string? message;
+    private string messageType = "info";
+    private HubConnection? hub;
+
+    /// <summary>آدرس دانلود Agent (ZIP). قابل تنظیم بر اساس سرور.</summary>
+    private string AgentDownloadUrl => "/agent/download.zip";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAgents();
+        await ConnectHub();
+    }
+
+    private async Task LoadAgents()
+    {
+        try
+        {
+            agents = await ScanService.GetAgentsAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا در بارگذاری: {ex.Message}";
+            messageType = "danger";
+        }
+    }
+
+    private async Task ConnectHub()
+    {
+        hub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/scanhub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hub.On("AgentsChanged", async () =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadAgents();
+                StateHasChanged();
+            });
+        });
+
+        hub.On<string, bool>("AgentStatusChanged", async (machineName, isOnline) =>
+        {
+            await InvokeAsync(async () =>
+            {
+                await LoadAgents();
+                StateHasChanged();
+            });
+        });
+
+        try
+        {
+            await hub.StartAsync();
+        }
+        catch { }
+    }
+
+    private async Task DeactivateAgent(string machineName)
+    {
+        try
+        {
+            // غیرفعال کردن Agent با set offline
+            await ScanService.SetAgentOfflineByMachineAsync(machineName);
+            message = $"Agent «{machineName}» غیرفعال شد.";
+            messageType = "warning";
+            await LoadAgents();
+        }
+        catch (Exception ex)
+        {
+            message = $"خطا: {ex.Message}";
+            messageType = "danger";
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hub is not null) await hub.DisposeAsync();
+    }
+}

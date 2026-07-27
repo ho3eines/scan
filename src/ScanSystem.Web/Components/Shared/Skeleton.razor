@@ -1,0 +1,25 @@
+@using Microsoft.AspNetCore.Components
+
+<div class="scan-skeleton @Variant">
+    @if (Variant == "image")
+    {
+        <div class="skel-wave"></div>
+        <span class="skel-label"><i class="bi bi-image"></i> تصویر در حال بارگذاری</span>
+    }
+    else if (Variant == "card")
+    {
+        <div class="skel-line w-75"></div>
+        <div class="skel-line w-50"></div>
+        <div class="skel-line w-90"></div>
+        <div class="skel-line w-60"></div>
+    }
+    else
+    {
+        <div class="skel-line w-100"></div>
+        <div class="skel-line w-80"></div>
+    }
+</div>
+
+@code {
+    [Parameter] public string Variant { get; set; } = "card"; // "card" | "image" | "text"
+}
