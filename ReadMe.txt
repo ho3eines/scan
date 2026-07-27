@@ -21,7 +21,8 @@
 | ارتباط Real-time | SignalR |
 | Agent محلی | WPF Worker Service |
 | توزیع Agent | ClickOnce + دانلود ZIP |
-| Frontend کمکی | Bootstrap 5 + DataTables + JavaScript خالص |
+| Frontend کمکی | Bootstrap 5 + JavaScript خالص |
+| نوع داده لیست‌ها | `System.Data.DataTable` / `DataRow` (خروجی Dapper به‌جای مدل‌های strongly-typed در لایه نمایش لیست‌ها) |
 
 ## 3. هدف سیستم
 
@@ -95,6 +96,7 @@ CREATE TABLE ImageGroupItems (
 - تمام کوئری‌ها Parametrized باشند (جلوگیری از SQL Injection)
 - Connection String از `appsettings.json` خوانده شود
 - Pagination با `OFFSET / FETCH NEXT` برای گالری تصاویر
+- برای لیست‌های جدولی (مثل لیست درخواست‌های اسکن)، خروجی کوئری‌ها به‌صورت `System.Data.DataTable` (با `DataRow` برای هر رکورد) برگردانده شود، نه مدل‌های کلاس-محور؛ Dapper این نوع خروجی را مستقیم پشتیبانی می‌کند (`connection.ExecuteReader` + `DataTable.Load` یا معادل آن)
 
 ### 6.2 SignalR Hub
 - متدهای موردنیاز: `RegisterAgent`, `RequestScan`, `UploadPage`, و رویداد `AgentStatusChanged`
@@ -112,16 +114,19 @@ CREATE TABLE ImageGroupItems (
 - خروجی هم به صورت ZIP قابل دانلود و هم ClickOnce
 - صفحه مدیریت Agent باید بر اساس Machine Name وضعیت را تشخیص دهد و دکمه مناسب (دانلود / غیرفعال / انتخاب) را نشان دهد
 
-### 6.5 گالری تصاویر
+### 6.5 گالری تصاویر (نمایش گرافیکی، نه جدولی)
 - API: `GET /api/images?skip=0&take=20`
+- نمایش به‌صورت گالری کاشی‌ای (Grid/Masonry) با Thumbnail — نه در قالب جدول
 - Lazy Load با Scroll یا دکمه "بارگذاری بیشتر"
 - نمایش Thumbnail در گالری و تصویر اصلی فقط در Fullscreen/Modal
-- انتخاب چندگانه با Checkbox و دانلود دسته‌ای به صورت ZIP (`System.IO.Compression`)
+- انتخاب چندگانه با Checkbox روی هر کارت تصویر و دانلود دسته‌ای به‌صورت ZIP (`System.IO.Compression`)
 - ویرایش تصویر: چرخش (Rotate)، حذف، جایگزینی (Replace Upload)
 - گروه‌بندی با Drag & Drop و ذخیره رابطه در `ImageGroupItems`
 
-### 6.6 لیست‌ها
-- استفاده از DataTables برای نمایش لیست درخواست‌های اسکن با Server-side Processing
+### 6.6 لیست‌های جدولی (درخواست‌های اسکن، Agent‌ها)
+- این بخش‌ها (برخلاف تصاویر) به‌صورت جدول متنی نمایش داده می‌شوند
+- در Backend، کوئری Dapper نتیجه را در قالب `System.Data.DataTable` برمی‌گرداند و در Blazor با پیمایش روی `DataRow`ها جدول ساخته می‌شود
+- Paging/Sorting/Filtering در همان کوئری T-SQL (سمت سرور) انجام شود، نه با کتابخانه جاوااسکریپتی جانبی
 
 ## 7. خروجی‌های موردانتظار از Claude Code
 
