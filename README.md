@@ -4,6 +4,12 @@
 هر ایستگاه کاری یک Agent سبک اجرا می‌کند که با نام ماشین (Machine Name) شناسایی می‌شود،
 درخواست‌های اسکن را لحظه‌ای دریافت کرده و صفحات را به‌محض اسکن به سرور Stream می‌کند.
 
+> **طراحی داده لیست‌ها (طبق سفارش):** کوئری‌های لیست‌های جدولی (درخواست‌های اسکن و Agentها)
+> با Dapper به‌صورت `System.Data.DataTable`/`DataRow` خوانده می‌شوند (`ExecuteReader` + `DataTable.Load`)
+> و جدول‌ها در Blazor با پیمایش `DataRow`ها ساخته می‌شوند.
+> Paging/Sorting/Filtering کاملاً سمت سرور و در T-SQL انجام می‌شود — بدون کتابخانه JS جانبی.
+> تصاویر برخلاف این‌ها به‌صورت گالری کاشی‌ای (گرافیکی) نمایش داده می‌شوند.
+
 ```
 Blazor Server (UI + API)
         │
@@ -70,8 +76,8 @@ dotnet run
 | مسیر | کاربرد |
 |---|---|
 | `/` | داشبورد |
-| `/scan` | شروع اسکن + آخرین درخواست‌ها |
-| `/requests` | لیست درخواست‌ها با **DataTables (Server-side Processing)** |
+| `/scan` | شروع اسکن + آخرین درخواست‌ها (DataTable/DataRow) |
+| `/requests` | لیست درخواست‌ها — جدول Server-side با Paging/Sorting/Filtering در T-SQL (خروجی `System.Data.DataTable`) |
 | `/gallery` | گالری Lazy Load، انتخاب چندگانه، ZIP، چرخش/جایگزینی/حذف، گروه‌بندی Drag & Drop |
 | `/agents` | مدیریت Agentها (آنلاین/آفلاین + دانلود + غیرفعال‌سازی) |
 | `/setup-guide` | راهنمای نصب Agent |
@@ -132,7 +138,6 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 | DELETE | `/api/images/{id}` | حذف تصویر |
 | POST | `/api/images/assignGroup` | تخصیص تصویر به گروه |
 | POST | `/api/zip` | دانلود دسته‌ای ZIP — body: `{"ids":["..."]}` |
-| GET | `/api/requests/data` | داده DataTables (draw/start/length/search/order) |
 | GET | `/api/agents` / DELETE `/api/agents/{id}` | لیست/حذف Agent |
 | GET | `/api/agent/download.zip` | دانلود ZIP برنامه Agent |
 

@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using ScanSystem.Shared;
@@ -110,12 +111,15 @@ public class ScanRequestRepository : IScanRequestRepository
     }
 
     /// <summary>
-    /// کوئری دینامیک DataTable Server-side: جستجو روی MachineName/Status و مرتب‌سازی بر اساس ستون انتخابی.
-    /// همه مقادیر کاربر به‌صورت Parametrized ارسال می‌شوند؛ فقط نام ستون از فهرست سفید انتخاب می‌شود.
+    /// لیست درخواست‌ها برای جدول Blazor — خروجی System.Data.DataTable
+    /// (Dapper ExecuteReader + DataTable.Load طبق §6.1).
+    /// جستجو روی MachineName/Status، مرتب‌سازی با فهرست سفید ستون‌ها و
+    /// صفحه‌بندی با OFFSET/FETCH NEXT — همه در T-SQL و Parametrized.
     /// </summary>
-    public async Task<(List<ScanRequestDto> data, int recordsTotal, int recordsFiltered)> GetDataAsync(
-        int start, int length, string? search, int orderColumnIndex, string orderDir)
+    public async Task<(DataTable data, int recordsTotal, int recordsFiltered)> GetDataTableAsync(
+        int page, int pageSize, string? search, int orderColumnIndex, string orderDir)
     {
+        // فهرست سفید ستون‌های قابل مرتب‌سازی (جلوگیری از SQL Injection)
         var orderColumn = orderColumnIndex switch
         {
             0 => "r.CreatedAt",
@@ -130,7 +134,6 @@ public class ScanRequestRepository : IScanRequestRepository
 
         const string countAll = "SELECT COUNT(*) FROM dbo.ScanRequests;";
 
-        // کوئری شمارش فیلترشده: با @Search خالی (NULL) همه رکوردها شمرده می‌شوند.
         const string countFiltered = @"
             SELECT COUNT(*)
             FROM dbo.ScanRequests r
@@ -138,14 +141,14 @@ public class ScanRequestRepository : IScanRequestRepository
             WHERE (@Search IS NULL OR a.MachineName LIKE @Search OR r.Status LIKE @Search);";
 
         const string dataSql = @"
-            SELECT r.Id, r.AgentId, a.MachineName AS AgentMachineName,
+            SELECT r.Id, r.AgentId, a.MachineName,
                    r.Status, r.IsMultiPage, r.CreatedAt, r.CompletedAt,
                    ImageCount = (SELECT COUNT(*) FROM dbo.Images i WHERE i.RequestId = r.Id)
             FROM dbo.ScanRequests r
             LEFT JOIN dbo.Agents a ON a.Id = r.AgentId
             WHERE (@Search IS NULL OR a.MachineName LIKE @Search OR r.Status LIKE @Search)
             ORDER BY {orderColumn} {dir}
-            OFFSET @Start ROWS FETCH NEXT @Length ROWS ONLY;";
+            OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;";
 
         // {orderColumn}/{dir} فقط از فهرست سفید بالا می‌آیند — تزریق SQL ممکن نیست.
         var finalDataSql = dataSql.Replace("{orderColumn}", orderColumn).Replace("{dir}", dir);
@@ -153,30 +156,36 @@ public class ScanRequestRepository : IScanRequestRepository
         try
         {
             using var conn = _factory.CreateConnection();
+            await conn.OpenAsync();
+
             var parameters = new DynamicParameters();
-            parameters.Add("@Start", Math.Max(0, start));
-            parameters.Add("@Length", length <= 0 ? 10 : length);
+            parameters.Add("@Offset", Math.Max(0, page) * Math.Max(1, pageSize));
+            parameters.Add("@PageSize", pageSize <= 0 ? 10 : pageSize);
             parameters.Add("@Search", string.IsNullOrWhiteSpace(search) ? null : $"%{search.Trim()}%");
 
             int total = await conn.ExecuteScalarAsync<int>(countAll);
             int filtered = await conn.ExecuteScalarAsync<int>(countFiltered, parameters);
 
-            var rows = await conn.QueryAsync<ScanRequestDto>(finalDataSql, parameters);
-            return (rows.AsList(), total, filtered);
+            // خروجی جدولی: ExecuteReader + DataTable.Load (الگوی مورد تأیید نیازمندی)
+            using var reader = await conn.ExecuteReaderAsync(finalDataSql, parameters);
+            var dt = new DataTable();
+            dt.Load(reader);
+
+            return (dt, total, filtered);
         }
         catch (Exception ex)
         {
             LogErr(ex);
-            return (new List<ScanRequestDto>(), 0, 0);
+            return (new DataTable(), 0, 0);
         }
     }
 
-    /// <summary>آخرین درخواست‌ها به ترتیب تاریخ ایجاد (برای صفحه اسکن/داشبورد).</summary>
-    public async Task<List<ScanRequestDto>> GetRecentAsync(int take)
+    /// <summary>آخرین درخواست‌ها به ترتیب تاریخ ایجاد — خروجی DataTable.</summary>
+    public async Task<DataTable> GetRecentDataTableAsync(int take)
     {
         const string sql = @"
             SELECT TOP (@Take)
-                   r.Id, r.AgentId, a.MachineName AS AgentMachineName,
+                   r.Id, r.AgentId, a.MachineName,
                    r.Status, r.IsMultiPage, r.CreatedAt, r.CompletedAt,
                    ImageCount = (SELECT COUNT(*) FROM dbo.Images i WHERE i.RequestId = r.Id)
             FROM dbo.ScanRequests r
@@ -185,10 +194,13 @@ public class ScanRequestRepository : IScanRequestRepository
         try
         {
             using var conn = _factory.CreateConnection();
-            var list = await conn.QueryAsync<ScanRequestDto>(sql, new { Take = take <= 0 ? 50 : take });
-            return list.AsList();
+            await conn.OpenAsync();
+            using var reader = await conn.ExecuteReaderAsync(sql, new { Take = take <= 0 ? 50 : take });
+            var dt = new DataTable();
+            dt.Load(reader);
+            return dt;
         }
-        catch (Exception ex) { LogErr(ex); return new List<ScanRequestDto>(); }
+        catch (Exception ex) { LogErr(ex); return new DataTable(); }
     }
 
     private void LogErr(Exception ex) => _logger?.LogError(ex, "ScanRequestRepository error");

@@ -357,6 +357,16 @@ h1:focus {
     transform: scale(1.05);
 }
 
+/* سرستون‌های قابل مرتب‌سازی در جداول Server-side */
+.data-row-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+}
+.data-row-table th.sortable:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+}
+
 /* نوارابزار ویرایشگر فول‌اسکرین گالری */
 .gallery-fullscreen .fs-toolbar {
     position: fixed;

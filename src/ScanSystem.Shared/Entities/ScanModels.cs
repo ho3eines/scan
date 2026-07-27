@@ -34,19 +34,6 @@ public class ScanRequest
     public DateTime? CompletedAt { get; set; }
 }
 
-/// <summary>مدل سبک برای نمایش درخواست‌ها در DataTable (Server-side).</summary>
-public class ScanRequestDto
-{
-    public Guid Id { get; set; }
-    public Guid AgentId { get; set; }
-    public string AgentMachineName { get; set; } = string.Empty;
-    public string Status { get; set; } = ScanStatus.Pending;
-    public bool IsMultiPage { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? CompletedAt { get; set; }
-    public int ImageCount { get; set; }
-}
-
 /// <summary>رکورد یک تصویر اسکن‌شده (یکی از صفحات یک درخواست).</summary>
 public class ScanImage
 {

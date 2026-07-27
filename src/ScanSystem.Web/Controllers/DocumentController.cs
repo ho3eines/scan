@@ -61,33 +61,6 @@ public class DocumentController : ControllerBase
         return PhysicalFile(path, "application/zip", "ScanSystem.Agent.zip");
     }
 
-    // ───────────────────────── درخواست‌های اسکن (DataTables Server-side) ─────────────────────────
-
-    /// <summary>
-    /// داده لیست درخواست‌ها برای DataTables (Server-side Processing).
-    /// پارامترها مطابق قرارداد پیش‌فرض DataTables: draw, start, length, search[value], order[0][column], order[0][dir].
-    /// </summary>
-    [HttpGet("requests/data")]
-    public async Task<IActionResult> GetRequestsData(
-        [FromQuery] int draw = 1,
-        [FromQuery] int start = 0,
-        [FromQuery] int length = 10,
-        [FromQuery(Name = "search[value]")] string? search = null,
-        [FromQuery(Name = "order[0][column]")] int orderColumn = 0,
-        [FromQuery(Name = "order[0][dir]")] string orderDir = "desc")
-    {
-        var (data, recordsTotal, recordsFiltered) =
-            await _service.GetRequestsDataAsync(start, length, search, orderColumn, orderDir);
-
-        return Ok(new
-        {
-            draw,
-            recordsTotal,
-            recordsFiltered,
-            data
-        });
-    }
-
     // ───────────────────────── گروه‌ها ─────────────────────────
 
     [HttpGet("groups")]

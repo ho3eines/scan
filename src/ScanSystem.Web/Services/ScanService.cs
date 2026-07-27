@@ -1,3 +1,4 @@
+using System.Data;
 using ScanSystem.Shared;
 using ScanSystem.Shared.Data;
 using ScanSystem.Shared.Entities;
@@ -77,6 +78,9 @@ public class ScanService : IScanService
     public async Task<List<AgentDto>> GetAgentsAsync()
         => await _agents.GetAllAsync();
 
+    public async Task<DataTable> GetAgentsDataTableAsync()
+        => await _agents.GetAllDataTableAsync();
+
     public async Task<int> DeleteAgentAsync(Guid id)
     {
         try
@@ -133,12 +137,12 @@ public class ScanService : IScanService
 
     public async Task DeleteRequestAsync(Guid id) => await _requests.DeleteAsync(id);
 
-    public async Task<(List<ScanRequestDto> data, int recordsTotal, int recordsFiltered)> GetRequestsDataAsync(
-        int start, int length, string? search, int orderColumnIndex, string orderDir)
-        => await _requests.GetDataAsync(start, length, search, orderColumnIndex, orderDir);
+    public async Task<(DataTable data, int recordsTotal, int recordsFiltered)> GetRequestsDataTableAsync(
+        int page, int pageSize, string? search, int orderColumnIndex, string orderDir)
+        => await _requests.GetDataTableAsync(page, pageSize, search, orderColumnIndex, orderDir);
 
-    public async Task<List<ScanRequestDto>> GetRecentRequestsAsync(int take)
-        => await _requests.GetRecentAsync(take);
+    public async Task<DataTable> GetRecentRequestsDataTableAsync(int take)
+        => await _requests.GetRecentDataTableAsync(take);
 
     // ───────────────────────── تصاویر / گالری ─────────────────────────
 

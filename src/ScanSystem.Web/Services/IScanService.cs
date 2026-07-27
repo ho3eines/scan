@@ -1,3 +1,4 @@
+using System.Data;
 using ScanSystem.Shared;
 using ScanSystem.Shared.Data;
 using ScanSystem.Shared.Entities;
@@ -15,6 +16,8 @@ public interface IScanService
     Task<Guid> UpsertAgentAsync(string machineName, string connectionId);
     Task SetAgentOfflineByMachineAsync(string machineName);
     Task<List<AgentDto>> GetAgentsAsync();
+    /// <summary>لیست Agentها برای جدول Blazor — خروجی System.Data.DataTable (§6.6).</summary>
+    Task<DataTable> GetAgentsDataTableAsync();
     /// <summary>حذف کامل یک Agent (از دیتابیس و از نگاشت اتصال در حافظه).</summary>
     Task<int> DeleteAgentAsync(Guid id);
 
@@ -24,11 +27,11 @@ public interface IScanService
     Task SetCompletedAsync(Guid id);
     Task SetErrorAsync(Guid id, string error);
     Task DeleteRequestAsync(Guid id);
-    /// <summary>کوئری Server-side DataTable.</summary>
-    Task<(List<ScanRequestDto> data, int recordsTotal, int recordsFiltered)> GetRequestsDataAsync(
-        int start, int length, string? search, int orderColumnIndex, string orderDir);
-    /// <summary>آخرین درخواست‌ها برای صفحه اسکن.</summary>
-    Task<List<ScanRequestDto>> GetRecentRequestsAsync(int take);
+    /// <summary>لیست درخواست‌ها برای جدول Blazor — خروجی DataTable؛ Paging/Sorting/Filtering در T-SQL (§6.6).</summary>
+    Task<(DataTable data, int recordsTotal, int recordsFiltered)> GetRequestsDataTableAsync(
+        int page, int pageSize, string? search, int orderColumnIndex, string orderDir);
+    /// <summary>آخرین درخواست‌ها برای صفحه اسکن (DataTable).</summary>
+    Task<DataTable> GetRecentRequestsDataTableAsync(int take);
 
     // ── تصاویر / گالری ──
     /// <summary>ذخیره یک صفحه اسکن‌شده + ساخت Thumbnail خودکار.</summary>
