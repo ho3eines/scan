@@ -216,6 +216,8 @@ publish/
 # Note: Comment the next line if you want to checkin your web deploy settings,
 # but database connection strings (with potential passwords) will be unencrypted
 *.pubxml
+# پروفایل Publish ClickOnce Agent بدون اطلاعات محرمانه است و باید در ریپازیتوری بماند
+!src/ScanSystem.Agent/Properties/PublishProfiles/ClickOnce.pubxml
 *.publishproj
 
 # Microsoft Azure Web App publish settings. Comment the next line if you want to
