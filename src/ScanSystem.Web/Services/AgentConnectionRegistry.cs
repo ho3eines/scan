@@ -47,6 +47,14 @@ public class AgentConnectionRegistry
         return machine;
     }
 
+    /// <summary>حذف نگاشت یک ماشین (مثلاً هنگام حذف Agent از دیتابیس).</summary>
+    public void UnregisterByMachine(string machineName)
+    {
+        if (string.IsNullOrWhiteSpace(machineName)) return;
+        if (_machineToConnection.TryRemove(machineName, out var conn))
+            _connectionToMachine.TryRemove(conn, out _);
+    }
+
     /// <summary>آیا ماشین الان آنلاین است؟</summary>
     public bool IsOnline(string machineName)
         => !string.IsNullOrWhiteSpace(machineName) && _machineToConnection.ContainsKey(machineName);

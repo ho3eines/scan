@@ -1,0 +1,299 @@
+@page "/requests"
+@rendermode InteractiveServer
+@using System.Data
+@using ScanSystem.Shared
+@inject IScanService ScanService
+
+<PageTitle>درخواست‌های اسکن</PageTitle>
+
+<div class="container-fluid mt-3" dir="rtl">
+    <div class="card shadow-sm">
+        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0"><i class="bi bi-list-check"></i> درخواست‌های اسکن</h5>
+            <span class="badge bg-light text-dark">جدول Server-side — System.Data.DataTable</span>
+        </div>
+        <div class="card-body">
+            <p class="text-muted small mb-3">
+                <i class="bi bi-info-circle"></i>
+                Paging / Sorting / Filtering کاملاً سمت سرور و در T-SQL انجام می‌شود؛
+                Backend نتیجه را به‌صورت <code>System.Data.DataTable</code> برمی‌گرداند
+                و جدول با پیمایش <code>DataRow</code>ها ساخته می‌شود.
+            </p>
+
+            @* نوار ابزار: جستجو + اندازه صفحه *@
+            <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
+                <div class="input-group input-group-sm" style="max-width:340px">
+                    <input type="text" class="form-control" placeholder="جستجو: نام ماشین یا وضعیت..."
+                           @bind="searchText" @bind:event="oninput"
+                           @onkeydown="@(e => { if (e.Key == "Enter") ApplySearch(); })" />
+                    <button class="btn btn-outline-primary" @onclick="ApplySearch">
+                        <i class="bi bi-search"></i> جستجو
+                    </button>
+                    @if (!string.IsNullOrEmpty(appliedSearch))
+                    {
+                        <button class="btn btn-outline-secondary" @onclick="ClearSearch" title="پاک کردن فیلتر">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    }
+                </div>
+
+                <div class="d-flex align-items-center gap-1 ms-auto">
+                    <label class="small text-muted mb-0">تعداد در صفحه:</label>
+                    <select class="form-select form-select-sm" style="width:auto" @bind="pageSize" @bind:after="ReloadFirstPage">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="Load" title="بروزرسانی">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+            </div>
+
+            @if (loading)
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary"></div>
+                    <p class="mt-2 text-muted small">در حال بارگذاری...</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover align-middle data-row-table">
+                        <thead class="table-dark">
+                            <tr>
+                                <th class="sortable" @onclick="() => ToggleSort(0)">
+                                    تاریخ ایجاد @SortIcon(0)
+                                </th>
+                                <th class="sortable" @onclick="() => ToggleSort(1)">
+                                    ایستگاه کاری @SortIcon(1)
+                                </th>
+                                <th class="sortable" @onclick="() => ToggleSort(2)">
+                                    وضعیت @SortIcon(2)
+                                </th>
+                                <th class="sortable" @onclick="() => ToggleSort(3)">
+                                    نوع @SortIcon(3)
+                                </th>
+                                <th class="sortable" @onclick="() => ToggleSort(4)">
+                                    تاریخ تکمیل @SortIcon(4)
+                                </th>
+                                <th>صفحات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (table is null || table.Rows.Count == 0)
+                            {
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        رکوردی یافت نشد.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @* پیمایش DataRowها — خروجی Dapper/DataTable *@
+                                @foreach (DataRow row in table.Rows)
+                                {
+                                    var status = Str(row, "Status");
+                                    <tr class="@RowClass(status)">
+                                        <td class="small">@FormatDate(row, "CreatedAt")</td>
+                                        <td>@Str(row, "MachineName")</td>
+                                        <td><span class="badge @StatusBadge(status)">@StatusText(status)</span></td>
+                                        <td>
+                                            @if (Bool(row, "IsMultiPage"))
+                                            {
+                                                <span class="badge bg-info text-dark">چندصفحه‌ای</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge bg-light text-dark border">تک‌صفحه</span>
+                                            }
+                                        </td>
+                                        <td class="small">@FormatDate(row, "CompletedAt")</td>
+                                        <td><span class="badge bg-secondary">@Int(row, "ImageCount")</span></td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @* صفحه‌بندی *@
+                <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-3">
+                    <span class="small text-muted">
+                        نمایش @RangeStart تا @RangeEnd از @recordsFiltered.ToString("N0") رکورد
+                        @if (!string.IsNullOrEmpty(appliedSearch))
+                        {
+                            <span>(از @recordsTotal.ToString("N0") کل)</span>
+                        }
+                    </span>
+
+                    <nav>
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(page == 0 ? "disabled" : "")">
+                                <a class="page-link" href="#" @onclick:preventDefault @onclick="() => GoToPage(0)">اول</a>
+                            </li>
+                            <li class="page-item @(page == 0 ? "disabled" : "")">
+                                <a class="page-link" href="#" @onclick:preventDefault @onclick="() => GoToPage(page - 1)">قبلی</a>
+                            </li>
+                            @foreach (var p in PageNumbers())
+                            {
+                                <li class="page-item @(p == page ? "active" : "")">
+                                    <a class="page-link" href="#" @onclick:preventDefault @onclick="() => GoToPage(p)">@(p + 1)</a>
+                                </li>
+                            }
+                            <li class="page-item @(page >= TotalPages - 1 ? "disabled" : "")">
+                                <a class="page-link" href="#" @onclick:preventDefault @onclick="() => GoToPage(page + 1)">بعدی</a>
+                            </li>
+                            <li class="page-item @(page >= TotalPages - 1 ? "disabled" : "")">
+                                <a class="page-link" href="#" @onclick:preventDefault @onclick="() => GoToPage(TotalPages - 1)">آخر</a>
+                            </li>
+                        </ul>
+                    </nav>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private DataTable? table;
+    private bool loading = true;
+
+    // Paging / Sorting / Filtering — پارامترهای کوئری T-SQL
+    private int page = 0;
+    private int pageSize = 10;
+    private int sortColumn = 0;      // 0=CreatedAt 1=MachineName 2=Status 3=IsMultiPage 4=CompletedAt
+    private string sortDir = "desc";
+    private string? searchText;
+    private string? appliedSearch;
+    private int recordsTotal = 0;
+    private int recordsFiltered = 0;
+
+    private int TotalPages => pageSize <= 0 ? 1 : Math.Max(1, (int)Math.Ceiling(recordsFiltered / (double)pageSize));
+    private int RangeStart => recordsFiltered == 0 ? 0 : page * pageSize + 1;
+    private int RangeEnd => Math.Min(recordsFiltered, (page + 1) * pageSize);
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        loading = true;
+        StateHasChanged();
+        try
+        {
+            var (dt, total, filtered) = await ScanService.GetRequestsDataTableAsync(
+                page, pageSize, appliedSearch, sortColumn, sortDir);
+            table = dt;
+            recordsTotal = total;
+            recordsFiltered = filtered;
+        }
+        catch
+        {
+            table = new DataTable();
+            recordsTotal = recordsFiltered = 0;
+        }
+        finally
+        {
+            loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ApplySearch()
+    {
+        appliedSearch = string.IsNullOrWhiteSpace(searchText) ? null : searchText.Trim();
+        page = 0;
+        await Load();
+    }
+
+    private async Task ClearSearch()
+    {
+        searchText = null;
+        appliedSearch = null;
+        page = 0;
+        await Load();
+    }
+
+    private async Task ReloadFirstPage()
+    {
+        page = 0;
+        await Load();
+    }
+
+    private async Task GoToPage(int p)
+    {
+        page = Math.Clamp(p, 0, TotalPages - 1);
+        await Load();
+    }
+
+    private async Task ToggleSort(int column)
+    {
+        if (sortColumn == column)
+            sortDir = string.Equals(sortDir, "asc", StringComparison.OrdinalIgnoreCase) ? "desc" : "asc";
+        else
+        {
+            sortColumn = column;
+            sortDir = "desc";
+        }
+        await Load();
+    }
+
+    private MarkupString SortIcon(int column)
+    {
+        if (sortColumn != column) return new MarkupString("<i class=\"bi bi-arrow-down-up text-muted small\"></i>");
+        return new MarkupString(string.Equals(sortDir, "asc", StringComparison.OrdinalIgnoreCase)
+            ? "<i class=\"bi bi-sort-up\"></i>"
+            : "<i class=\"bi bi-sort-down\"></i>");
+    }
+
+    private IEnumerable<int> PageNumbers()
+    {
+        int window = 2;
+        int from = Math.Max(0, page - window);
+        int to = Math.Min(TotalPages - 1, page + window);
+        for (int i = from; i <= to; i++) yield return i;
+    }
+
+    // ─────────── helpers برای خواندن امن DataRow ───────────
+
+    private static string Str(DataRow r, string col)
+        => r.IsNull(col) ? "—" : r[col]?.ToString() ?? "—";
+
+    private static bool Bool(DataRow r, string col)
+        => !r.IsNull(col) && Convert.ToBoolean(r[col]);
+
+    private static int Int(DataRow r, string col)
+        => r.IsNull(col) ? 0 : Convert.ToInt32(r[col]);
+
+    private static string FormatDate(DataRow r, string col)
+        => r.IsNull(col) ? "—" : Convert.ToDateTime(r[col]).ToString("yyyy/MM/dd HH:mm");
+
+    private static string StatusText(string status) => status switch
+    {
+        ScanStatus.Pending => "در انتظار",
+        ScanStatus.Processing => "در حال پردازش",
+        ScanStatus.Done => "انجام شد",
+        ScanStatus.Error => "خطا",
+        _ => status
+    };
+
+    private static string StatusBadge(string status) => status switch
+    {
+        ScanStatus.Pending => "bg-secondary",
+        ScanStatus.Processing => "bg-warning text-dark",
+        ScanStatus.Done => "bg-success",
+        ScanStatus.Error => "bg-danger",
+        _ => "bg-light text-dark"
+    };
+
+    private static string RowClass(string status) => status switch
+    {
+        ScanStatus.Processing => "table-warning",
+        ScanStatus.Done => "table-success",
+        ScanStatus.Error => "table-danger",
+        _ => ""
+    };
+}

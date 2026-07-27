@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
 using ScanSystem.Shared.Data;
 using ScanSystem.Shared.Repositories;
@@ -6,6 +7,11 @@ using ScanSystem.Web.Hubs;
 using ScanSystem.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ───────────────────────── محدودیت حجم آپلود (جایگزینی تصویر / اسکن‌های بزرگ) ─────────────────────────
+const long MaxRequestBodyBytes = 100L * 1024 * 1024; // 100MB
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = MaxRequestBodyBytes);
+builder.Services.Configure<FormOptions>(options => options.MultipartBodyLengthLimit = MaxRequestBodyBytes);
 
 // ───────────────────────── Data Access (Dapper — بدون EF Core) ─────────────────────────
 // Connection String از appsettings.json خوانده می‌شود و به Factory تزریق می‌گردد.

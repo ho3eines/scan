@@ -1,3 +1,4 @@
+using System.Data;
 using Dapper;
 using Microsoft.Extensions.Logging;
 using ScanSystem.Shared.Data;
@@ -61,6 +62,28 @@ public class AgentRepository : IAgentRepository
             return list.AsList();
         }
         catch (Exception ex) { LogErr(ex); return new List<AgentDto>(); }
+    }
+
+    /// <summary>
+    /// لیست Agentها برای جدول Blazor — خروجی System.Data.DataTable
+    /// (ExecuteReader + DataTable.Load طبق §6.6).
+    /// </summary>
+    public async Task<DataTable> GetAllDataTableAsync()
+    {
+        const string sql = @"
+            SELECT Id, MachineName, IsOnline, LastSeen
+            FROM dbo.Agents
+            ORDER BY IsOnline DESC, LastSeen DESC;";
+        try
+        {
+            using var conn = _factory.CreateConnection();
+            await conn.OpenAsync();
+            using var reader = await conn.ExecuteReaderAsync(sql);
+            var dt = new DataTable();
+            dt.Load(reader);
+            return dt;
+        }
+        catch (Exception ex) { LogErr(ex); return new DataTable(); }
     }
 
     public async Task UpsertAsync(string machineName, bool isOnline, string? connectionId)

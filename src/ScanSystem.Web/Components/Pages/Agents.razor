@@ -1,7 +1,9 @@
 @page "/agents"
 @rendermode InteractiveServer
+@using System.Data
 @using Microsoft.AspNetCore.SignalR.Client
 @using ScanSystem.Shared.Entities
+@implements IAsyncDisposable
 @inject NavigationManager Navigation
 @inject IScanService ScanService
 
@@ -12,13 +14,13 @@
     <div class="card shadow-sm mb-3">
         <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="bi bi-pc-display"></i> مدیریت ایستگاه‌های کاری (Agent)</h5>
-            <span class="badge bg-light text-dark">@agents?.Count ?? 0</span>
+            <span class="badge bg-light text-dark">@(agents?.Rows.Count ?? 0)</span>
         </div>
         <div class="card-body">
             <p class="text-muted small mb-3">
                 <i class="bi bi-info-circle"></i>
                 هر کامپیوتر با نصب و اجرای برنامه Agent خودش را در این لیست ثبت می‌کند.
-                Agent باید برنامه ScanSystem Agent را اجرا کرده و به سرور متصل باشد.
+                وضعیت بر اساس <strong>Machine Name</strong> تشخیص داده می‌شود.
             </p>
 
             @if (agents == null)
@@ -28,7 +30,7 @@
                     <p class="mt-2 text-muted">در حال بارگذاری...</p>
                 </div>
             }
-            else if (agents.Count == 0)
+            else if (agents.Rows.Count == 0)
             {
                 <div class="text-center py-5">
                     <i class="bi bi-hdd-stack display-1 text-muted"></i>
@@ -44,7 +46,8 @@
             else
             {
                 <div class="table-responsive">
-                    <table class="table table-hover table-striped align-middle" id="agentsTable">
+                    @* جدول بر پایه System.Data.DataTable — پیمایش DataRowها (§6.6) *@
+                    <table class="table table-hover table-striped align-middle data-row-table" id="agentsTable">
                         <thead class="table-dark">
                             <tr>
                                 <th>#</th>
@@ -56,14 +59,16 @@
                         </thead>
                         <tbody>
                             @{ int index = 0; }
-                            @foreach (var agent in agents)
+                            @foreach (DataRow row in agents.Rows)
                             {
                                 index++;
-                                <tr class="@(agent.IsOnline ? "table-success" : "table-light")">
+                                var isOnline = Bool(row, "IsOnline");
+                                var machineName = Str(row, "MachineName");
+                                <tr class="@(isOnline ? "table-success" : "table-light")">
                                     <td>@index</td>
                                     <td>
-                                        <strong>@agent.MachineName</strong>
-                                        @if (agent.IsOnline)
+                                        <strong>@machineName</strong>
+                                        @if (isOnline)
                                         {
                                             <span class="badge bg-success ms-1">آنلاین</span>
                                         }
@@ -73,33 +78,34 @@
                                         }
                                     </td>
                                     <td>
-                                        <span class="agent-dot @(agent.IsOnline ? "online" : "offline") d-inline-block me-1"
-                                              style="width:12px;height:12px;border-radius:50%;background:@(agent.IsOnline ? "#28a745" : "#dc3545")"></span>
-                                        @(agent.IsOnline ? "آنلاین" : "آفلاین")
+                                        <span class="agent-dot d-inline-block me-1"
+                                              style="width:12px;height:12px;border-radius:50%;background:@(isOnline ? "#28a745" : "#dc3545")"></span>
+                                        @(isOnline ? "آنلاین" : "آفلاین")
                                     </td>
                                     <td class="small">
-                                        @if (agent.LastSeen.HasValue)
+                                        @if (row.IsNull("LastSeen"))
                                         {
-                                            @agent.LastSeen.Value.ToString("yyyy/MM/dd HH:mm")
-                                            <span class="text-muted ms-1">
-                                                (@((DateTime.Now - agent.LastSeen.Value).TotalMinutes.ToString("F0")) دقیقه پیش)
-                                            </span>
+                                            <span class="text-muted">—</span>
                                         }
                                         else
                                         {
-                                            <span class="text-muted">—</span>
+                                            var lastSeen = Convert.ToDateTime(row["LastSeen"]);
+                                            @lastSeen.ToString("yyyy/MM/dd HH:mm")
+                                            <span class="text-muted ms-1">
+                                                (@((DateTime.Now - lastSeen).TotalMinutes.ToString("F0")) دقیقه پیش)
+                                            </span>
                                         }
                                     </td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
-                                            @if (agent.IsOnline)
+                                            @if (isOnline)
                                             {
                                                 <button class="btn btn-success btn-sm" disabled
                                                         title="Agent آنلاین">
                                                     <i class="bi bi-check-circle"></i> متصل
                                                 </button>
                                                 <button class="btn btn-outline-danger btn-sm"
-                                                        @onclick="() => DeactivateAgent(agent.MachineName)"
+                                                        @onclick="() => DeactivateAgent(machineName)"
                                                         title="غیرفعال کردن Agent">
                                                     <i class="bi bi-slash-circle"></i> غیرفعال
                                                 </button>
@@ -128,7 +134,7 @@
                     <strong>دانلود Agent:</strong>
                     <a href="@AgentDownloadUrl" class="alert-link">دانلود نسخه ZIP</a>
                     &nbsp;|&nbsp;
-                    <span>همچنین Agent به‌صورت ClickOnce در پوشه Publish/client در دسترس است.</span>
+                    <span>همچنین Agent به‌صورت ClickOnce از طریق پروفایل Publish آماده است (پوشه publish/client).</span>
                 </div>
             }
         </div>
@@ -145,13 +151,13 @@
 </div>
 
 @code {
-    private List<AgentDto>? agents;
+    private DataTable? agents; // خروجی Dapper به‌صورت System.Data.DataTable (§6.6)
     private string? message;
     private string messageType = "info";
     private HubConnection? hub;
 
-    /// <summary>آدرس دانلود Agent (ZIP). قابل تنظیم بر اساس سرور.</summary>
-    private string AgentDownloadUrl => "/agent/download.zip";
+    /// <summary>آدرس دانلود Agent (ZIP) — endpoint در DocumentController.</summary>
+    private string AgentDownloadUrl => "/api/agent/download.zip";
 
     protected override async Task OnInitializedAsync()
     {
@@ -163,7 +169,7 @@
     {
         try
         {
-            agents = await ScanService.GetAgentsAsync();
+            agents = await ScanService.GetAgentsDataTableAsync();
         }
         catch (Exception ex)
         {
@@ -220,6 +226,14 @@
             messageType = "danger";
         }
     }
+
+    // ─────────── helpers برای خواندن امن DataRow ───────────
+
+    private static string Str(DataRow r, string col)
+        => r.IsNull(col) ? "—" : r[col]?.ToString() ?? "—";
+
+    private static bool Bool(DataRow r, string col)
+        => !r.IsNull(col) && Convert.ToBoolean(r[col]);
 
     public async ValueTask DisposeAsync()
     {

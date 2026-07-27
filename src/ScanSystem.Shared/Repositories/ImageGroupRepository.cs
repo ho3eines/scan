@@ -111,7 +111,7 @@ public class ImageGroupRepository : IImageGroupRepository
         catch (Exception ex) { LogErr(ex); }
     }
 
-    /// <summary>حذف همه焊接 یک تصویر از هر گروه (مثلاً قبل از جابه‌جایی به گروه جدید).</summary>
+    /// <summary>حذف همه تخصیص‌های یک تصویر از هر گروه (مثلاً قبل از جابه‌جایی به گروه جدید).</summary>
     public async Task UnassignAllFromImageAsync(Guid imageId)
     {
         const string sql = "DELETE FROM dbo.ImageGroupItems WHERE ImageId = @ImageId;";

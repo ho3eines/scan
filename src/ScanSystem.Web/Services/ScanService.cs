@@ -1,3 +1,4 @@
+using System.Data;
 using ScanSystem.Shared;
 using ScanSystem.Shared.Data;
 using ScanSystem.Shared.Entities;
@@ -77,6 +78,25 @@ public class ScanService : IScanService
     public async Task<List<AgentDto>> GetAgentsAsync()
         => await _agents.GetAllAsync();
 
+    public async Task<DataTable> GetAgentsDataTableAsync()
+        => await _agents.GetAllDataTableAsync();
+
+    public async Task<int> DeleteAgentAsync(Guid id)
+    {
+        try
+        {
+            var agent = await _agents.GetByIdAsync(id);
+            if (agent is not null)
+                _connections.UnregisterByMachine(agent.MachineName); // نگاشت حافظه هم پاک شود
+            return await _agents.DeleteAsync(id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "DeleteAgentAsync failed for {Id}", id);
+            return 0;
+        }
+    }
+
     // ───────────────────────── درخواست‌های اسکن ─────────────────────────
 
     public async Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage)
@@ -117,15 +137,18 @@ public class ScanService : IScanService
 
     public async Task DeleteRequestAsync(Guid id) => await _requests.DeleteAsync(id);
 
-    public async Task<(List<ScanRequestDto> data, int recordsTotal, int recordsFiltered)> GetRequestsDataAsync(
-        int start, int length, string? search, int orderColumnIndex, string orderDir)
-        => await _requests.GetDataAsync(start, length, search, orderColumnIndex, orderDir);
+    public async Task<(DataTable data, int recordsTotal, int recordsFiltered)> GetRequestsDataTableAsync(
+        int page, int pageSize, string? search, int orderColumnIndex, string orderDir)
+        => await _requests.GetDataTableAsync(page, pageSize, search, orderColumnIndex, orderDir);
+
+    public async Task<DataTable> GetRecentRequestsDataTableAsync(int take)
+        => await _requests.GetRecentDataTableAsync(take);
 
     // ───────────────────────── تصاویر / گالری ─────────────────────────
 
     public async Task<ScanImage> SavePageAsync(Guid requestId, string fileName, byte[] data, int pageNumber)
     {
-        // ساخت Thumbnail در سمتنای سرور (ویندوز) — کاهش پهنای باند گالری.
+        // ساخت Thumbnail در سمت سرور (ویندوز) — کاهش پهنای باند گالری.
         byte[]? thumbnail = ThumbnailGenerator.Generate(data);
 
         try

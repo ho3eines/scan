@@ -1,7 +1,7 @@
 namespace ScanSystem.Shared.Entities;
 
 /// <summary>
-/// یک ایستگاه کاری (Agent)registry شده در سامانه.
+/// یک ایستگاه کاری (Agent) ثبت‌شده در سامانه.
 /// هر دستگاه Agent خودش را با MachineName یکتا ثبت می‌کند.
 /// </summary>
 public class Agent
@@ -19,7 +19,7 @@ public class AgentDto
     public string MachineName { get; set; } = string.Empty;
     public bool IsOnline { get; set; }
     public DateTime? LastSeen { get; set; }
-    /// <summary>帮忙 نمایش وضعیت UI: آنلاین / آفلاین.</summary>
+    /// <summary>متن نمایش وضعیت در UI: آنلاین / آفلاین.</summary>
     public string StatusDisplay => IsOnline ? "آنلاین" : "آفلاین";
 }
 
@@ -34,20 +34,7 @@ public class ScanRequest
     public DateTime? CompletedAt { get; set; }
 }
 
-/// <summary>مدل سبک برای نمایش درخواست‌ها در DataTable (Server-side).</summary>
-public class ScanRequestDto
-{
-    public Guid Id { get; set; }
-    public Guid AgentId { get; set; }
-    public string AgentMachineName { get; set; } = string.Empty;
-    public string Status { get; set; } = ScanStatus.Pending;
-    public bool IsMultiPage { get; set; }
-    public DateTime CreatedAt { get; set; }
-    public DateTime? CompletedAt { get; set; }
-    public int ImageCount { get; set; }
-}
-
-/// <summary> FECd یک تصویر اسکن‌شده (یکی از صفحات یک درخواست).</summary>
+/// <summary>رکورد یک تصویر اسکن‌شده (یکی از صفحات یک درخواست).</summary>
 public class ScanImage
 {
     public Guid Id { get; set; }
@@ -73,14 +60,14 @@ public class ImageGalleryItemDto
     public bool HasThumbnail { get; set; }
 }
 
-/// <summary>一个 گروه تصاویر.</summary>
+/// <summary>یک گروه تصاویر.</summary>
 public class ImageGroup
 {
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
 }
 
-/// <summary>黑色 تصویر ↔ گروه (many-to-many).</summary>
+/// <summary>رابطه تصویر ↔ گروه (many-to-many).</summary>
 public class ImageGroupItem
 {
     public Guid Id { get; set; }

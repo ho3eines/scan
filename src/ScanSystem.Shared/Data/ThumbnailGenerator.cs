@@ -6,7 +6,7 @@ namespace ScanSystem.Shared.Data;
 
 /// <summary>
 /// ساخت Thumbnail از تصاویر اسکن‌شده با System.Drawing.
-/// (در środowindo Windows از ScanSystem.Web استفاده می‌شود)
+/// (فقط روی Windows — از ScanSystem.Web استفاده می‌شود)
 /// </summary>
 public static class ThumbnailGenerator
 {

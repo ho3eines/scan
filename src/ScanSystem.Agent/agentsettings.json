@@ -1,1 +1,8 @@
-{"DisplayName": "", "ServerUrl": "http://localhost:5002/scanhub"}
+{
+  "DisplayName": "",
+  "ServerUrl": "http://localhost:5002/scanhub",
+  "AutoConnect": true,
+  "StartMinimized": false,
+  "AutoStart": false,
+  "MaxPages": 50
+}
