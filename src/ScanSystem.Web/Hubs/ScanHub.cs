@@ -6,9 +6,8 @@ using ScanSystem.Web.Services;
 namespace ScanSystem.Web.Hubs;
 
 /// <summary>
-/// مرکز ارتباط بین Blazor UI و WPF Agentها از طریق SignalR.
-/// Agent با نام ماشین خود ثبت می‌شود و درخواست اسکن فقط به همان Agent ارسال می‌شود.
-/// هر صفحه به‌محض اسکن از طریق UploadPage آپلود می‌شود (Streaming) — نه بعد از اتمام کل scan.
+/// مرکز ارتباط زنده بین Blazor UI و WPF Agentها.
+/// تمام عملیات (اسکن، گالری، گروه‌بندی، ویرایش تصویر) از طریق این Hub انجام می‌شود.
 /// </summary>
 public class ScanHub : Hub
 {
@@ -23,7 +22,8 @@ public class ScanHub : Hub
         _logger = logger;
     }
 
-    /// <summary>Agent خودش را با نام ماشین ثبت می‌کند (شناسه یکتا = نام کامپیوتر).</summary>
+    // ───────────────────────── Agentها ─────────────────────────
+
     public async Task RegisterAgent(string machineName)
     {
         if (string.IsNullOrWhiteSpace(machineName)) return;
@@ -32,77 +32,61 @@ public class ScanHub : Hub
         await _service.UpsertAgentAsync(machineName, Context.ConnectionId);
         _logger.LogInformation("Agent registered: {Machine}", machineName);
 
-        // اعلام تغییر وضعیت Agentها به همه کلاینت‌ها (UI مدیریت + گالری).
         await Clients.All.SendAsync("AgentStatusChanged", machineName, true);
         await Clients.All.SendAsync("AgentsChanged");
     }
 
-    /// <summary>لیست Agentها را برای فراخوان برمی‌گرداند.</summary>
-    public async Task GetAgentsAsync()
-    {
-        var agents = await _service.GetAgentsAsync();
-        await Clients.Caller.SendAsync("AgentsList", agents);
-    }
+    // ───────────────────────── اسکن ─────────────────────────
 
-    /// <summary>
-    /// UI یک درخواست اسکن برای یک کامپیوتر مشخص می‌فرستد؛ ثبت در DB و ارسال فقط به همان Agent.
-    /// isMultiPage: اگر true باشد، Agent تا پایان feeder اسکن می‌کند و صفحات را به‌صورت استریم آپلود می‌کند.
-    /// </summary>
-    public async Task RequestScan(string machineName, bool isMultiPage = false)
+    public async Task<Guid> RequestScan(string machineName, bool isMultiPage)
     {
-        if (string.IsNullOrWhiteSpace(machineName)) return;
+        if (string.IsNullOrWhiteSpace(machineName)) return Guid.Empty;
         machineName = machineName.Trim();
 
         var id = await _service.CreateRequestAsync(machineName, isMultiPage);
+        if (id == Guid.Empty) return id;
+
         _logger.LogInformation("Scan requested {Id} for {Machine} (multiPage={Mp})", id, machineName, isMultiPage);
 
         var connectionId = _connections.GetConnectionId(machineName);
         if (connectionId is null)
         {
-            // Agent آفلاین است؛ درخواست ثبت می‌شود اما وضعیت خطا می‌گیرد.
             await _service.SetErrorAsync(id, $"Agent '{machineName}' آنلاین نیست.");
             await Clients.All.SendAsync("RequestsChanged");
-            return;
+            return id;
         }
 
-        // ارسال درخواست فقط به Agent هدف.
         await Clients.Client(connectionId).SendAsync("ScanRequested", machineName, id, isMultiPage);
         await Clients.All.SendAsync("RequestsChanged");
+        return id;
     }
 
-    /// <summary>Agent شروع پردازش را اعلام می‌کند.</summary>
     public async Task StartProcessing(Guid id)
     {
         await _service.SetProcessingAsync(id);
-        await Clients.All.SendAsync("AgentStatusChanged", string.Empty, true);
         await Clients.All.SendAsync("StatusChanged", id, ScanStatus.Processing);
         await Clients.All.SendAsync("RequestsChanged");
     }
 
-    /// <summary>
-    /// Agent یک صفحه اسکن‌شده را آپلود می‌کند (به‌محض آماده شدن، نه در پایان کل scan).
-    /// pageNumber از ۱ شروع می‌شود. برای multi-page چند بار با افزایش pageNumber فراخوانی می‌شود.
-    /// </summary>
-    public async Task UploadPage(Guid id, string fileName, string contentType, byte[] data, int pageNumber)
+    public async Task<Guid> UploadPage(Guid id, string fileName, string contentType, byte[] data, int pageNumber)
     {
         try
         {
-            var image = await _service.SavePageAsync(id, fileName, data, pageNumber);
-            _logger.LogInformation("Page {Page} uploaded for request {Id} ({Size} bytes)",
-                pageNumber, id, data.Length);
+            var imageId = await _service.SavePageAsync(id, fileName, data, pageNumber);
+            _logger.LogInformation("Page {Page} uploaded for request {Id} ({Size} bytes)", pageNumber, id, data.Length);
 
-            // اطلاع به UI گالری که یک تصویر جدید آماده است (Lazy Reload توسط کلاینت).
-            await Clients.All.SendAsync("PageUploaded", id, image.Id, pageNumber);
+            await Clients.All.SendAsync("PageUploaded", id, imageId, pageNumber);
             await Clients.All.SendAsync("StatusChanged", id, ScanStatus.Processing);
             await Clients.All.SendAsync("RequestsChanged");
+            return imageId;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "UploadPage failed for request {Id}", id);
+            throw;
         }
     }
 
-    /// <summary>Agent پایان موفق scan را اعلام می‌کند (پس از آپلود آخرین صفحه).</summary>
     public async Task CompleteScan(Guid id)
     {
         await _service.SetCompletedAsync(id);
@@ -111,7 +95,6 @@ public class ScanHub : Hub
         await Clients.All.SendAsync("RequestsChanged");
     }
 
-    /// <summary>Agent خطا را گزارش می‌کند.</summary>
     public async Task ReportError(Guid id, string message)
     {
         await _service.SetErrorAsync(id, message);
@@ -119,20 +102,79 @@ public class ScanHub : Hub
         await Clients.All.SendAsync("RequestsChanged");
     }
 
-    /// <summary>تخصیص یک تصویر به یک گروه با درگ و دراپ.</summary>
-    public async Task AssignGroup(Guid imageId, string? groupName)
-    {
-        if (!string.IsNullOrWhiteSpace(groupName))
-            await _service.AssignGroupAsync(imageId, groupName!);
+    // ───────────────────────── درخواست‌ها ─────────────────────────
 
-        await Clients.All.SendAsync("GalleryChanged");
+    public async Task DeleteRequest(Guid id)
+    {
+        await _service.DeleteRequestAsync(id);
+        await Clients.All.SendAsync("RequestsChanged");
     }
+
+    // ───────────────────────── گالری ─────────────────────────
+
+    public async Task<bool> DeleteImage(Guid id)
+    {
+        await _service.DeleteImageAsync(id);
+        await Clients.All.SendAsync("GalleryChanged");
+        return true;
+    }
+
+    public async Task<bool> RotateImage(Guid id, int angle)
+    {
+        if (angle is not (90 or 180 or 270)) return false;
+        var data = await _service.GetImageDataAsync(id);
+        if (data is null) return false;
+        var rotated = ThumbnailGenerator.Rotate(data, angle);
+        if (rotated is null) return false;
+        await _service.UpdateImageAsync(id, rotated);
+        await Clients.All.SendAsync("GalleryChanged");
+        return true;
+    }
+
+    public async Task<bool> ReplaceImage(Guid id, byte[] data)
+    {
+        if (data is null || data.Length == 0) return false;
+        await _service.UpdateImageAsync(id, data);
+        await Clients.All.SendAsync("GalleryChanged");
+        return true;
+    }
+
+    // ───────────────────────── گروه‌ها ─────────────────────────
+
+    public async Task<Guid> CreateGroup(string name)
+    {
+        return await _service.EnsureGroupAsync(name);
+    }
+
+    public async Task<bool> DeleteGroup(Guid id)
+    {
+        await _service.DeleteGroupAsync(id);
+        await Clients.All.SendAsync("GroupsChanged");
+        await Clients.All.SendAsync("GalleryChanged");
+        return true;
+    }
+
+    public async Task<bool> AssignImageToGroup(Guid imageId, string groupName)
+    {
+        await _service.AssignImageToGroupAsync(imageId, groupName);
+        await Clients.All.SendAsync("GroupsChanged");
+        await Clients.All.SendAsync("GalleryChanged");
+        return true;
+    }
+
+    public async Task<bool> RemoveImageFromGroup(Guid imageId, Guid groupId)
+    {
+        await _service.RemoveImageFromGroupAsync(imageId, groupId);
+        await Clients.All.SendAsync("GalleryChanged");
+        return true;
+    }
+
+    // ───────────────────────── چرخه عمر ─────────────────────────
 
     public override async Task OnConnectedAsync()
     {
         _logger.LogInformation("Client connected: {ConnectionId}", Context.ConnectionId);
         await Clients.Caller.SendAsync("AgentConnected", Context.ConnectionId);
-        // اطلاع فوری از لیست Agentها به فراخوان جدید (UI).
         await Clients.Caller.SendAsync("AgentsList", await _service.GetAgentsAsync());
         await base.OnConnectedAsync();
     }
@@ -140,7 +182,6 @@ public class ScanHub : Hub
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         _logger.LogInformation("Client disconnected: {ConnectionId}", Context.ConnectionId);
-        // اگر Agent قطع شده، نام ماشین را پیدا و آفلاین می‌کنیم.
         var machine = _connections.Unregister(Context.ConnectionId);
         if (!string.IsNullOrWhiteSpace(machine))
         {

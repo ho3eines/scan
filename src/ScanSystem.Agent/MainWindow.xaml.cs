@@ -106,23 +106,23 @@ public partial class MainWindow : Window
             {
                 await Dispatcher.InvokeAsync(() =>
                 {
-                    UpdateStatus(true);
                     Log("اتصال مجدد برقرار شد؛ ثبت‌نام دوباره انجام می‌شود.");
                 });
                 // ConnectionId جدید است → باید دوباره RegisterAgent صدا زده شود.
                 await RegisterAsync();
+                await Dispatcher.InvokeAsync(() => UpdateStatus(true));
             };
 
             await _connection.StartAsync();
-            UpdateStatus(true);
             Log("اتصال برقرار شد.");
 
             await RegisterAsync();
+            UpdateStatus(true);
         }
         catch (Exception ex)
         {
             Log($"خطای اتصال: {ex.Message}");
-            System.Windows.MessageBox.Show($"خطا در اتصال:\n{ex.Message}", "خطا",
+            MessageBox.Show($"خطا در اتصال:\n{ex.Message}", "خطا",
                 MessageBoxButton.OK, MessageBoxImage.Error);
 
         }
