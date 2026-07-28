@@ -69,6 +69,39 @@
     box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
 }
 
+/* لوگو و برند pdd Scan در هدر صفحه */
+.sa-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.sa-title .sa-title-logo {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    object-fit: contain;
+    background: #fff;
+    border: 1px solid var(--sa-border);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
+    padding: 3px;
+}
+.sa-title .sa-title-text {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+.sa-title .sa-title-brand {
+    font-size: 1.05rem;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    color: var(--sa-primary-dark);
+}
+.sa-title .sa-title-sub {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--sa-muted);
+}
+
 /* پیل وضعیت اتصال */
 .sa-pill {
     display: inline-flex;

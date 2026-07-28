@@ -11,7 +11,7 @@
 @inject IScanService ScanService
 @inject Microsoft.JSInterop.IJSRuntime JS
 
-<PageTitle>اسکن مدارک</PageTitle>
+<PageTitle>pdd Scan | اسکن مدارک</PageTitle>
 
 <HeadContent>
     <link rel="stylesheet" href="css/scan.css" />
@@ -27,8 +27,11 @@
     <div class="sa-toolbar">
         <div class="sa-toolbar-top">
             <h5 class="sa-title">
-                <span class="sa-title-icon"><i class="bi bi-camera-fill"></i></span>
-                اسکن مدارک
+                <img class="sa-title-logo" src="img/pddscan-logo.png" alt="pdd Scan" />
+                <span class="sa-title-text">
+                    <b class="sa-title-brand">pdd Scan</b>
+                    <small class="sa-title-sub">اسکن مدارک</small>
+                </span>
             </h5>
             <span class="sa-pill @(isConnected ? "online" : "offline")">
                 <span class="sa-dot"></span>
@@ -381,10 +384,25 @@
     protected override async Task OnInitializedAsync()
     {
         scanContextKey = CurrentScanContextKey;
+
+        // ترتیب مهم: ابتدا تنظیمات از localStorage خوانده می‌شود (در مرحله
+        // Prerendering این فراخوانی JS با try/catch داخل LoadSettings بی‌اثر
+        // می‌شود و در رندر تعاملی به‌درستی اجرا می‌گردد)، سپس داده‌ها از
+        // دیتابیس لود می‌شوند تا فیلتر گالری بر اساس ماشین ذخیره‌شده اعمال شود.
         await LoadSettings();
-        await ConnectHub();
         await RefreshAll();
         initialized = true;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // این متد در Prerendering اجرا نمی‌شود؛ بنابراین اتصال SignalR فقط
+        // زمانی ساخته می‌شود که صفحه واقعاً تعاملی شده است (رفع اتصال‌های
+        // تکیف‌مانده و دوبل در Prerender).
+        if (!firstRender) return;
+
+        await ConnectHub();
+        StateHasChanged();
     }
 
     protected override async Task OnParametersSetAsync()
