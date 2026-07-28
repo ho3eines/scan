@@ -9,7 +9,9 @@ namespace ScanSystem.Agent;
 public static class AutoStartHelper
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "ScanSystemAgent";
+    private const string ValueName = "PddScanAgent";
+    // نام قدیمی برای پاک‌سازی رجیستری هنگام تعویض نام برند
+    private const string LegacyValueName = "ScanSystemAgent";
 
     /// <summary>فعال/غیرفعال کردن Auto Start.</summary>
     public static void Set(bool enable)
@@ -25,10 +27,13 @@ public static class AutoStartHelper
                 if (string.IsNullOrEmpty(exe)) return;
                 // اجرا در حالت Tray هنگام بالا آمدن ویندوز
                 key.SetValue(ValueName, $"\"{exe}\" --tray");
+                // ریشه‌کنی ورودی نام قدیمی (ScanSystemAgent) تا برنامه دوبار اجرا نشود
+                key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
             }
             else
             {
                 key.DeleteValue(ValueName, throwOnMissingValue: false);
+                key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
             }
         }
         catch

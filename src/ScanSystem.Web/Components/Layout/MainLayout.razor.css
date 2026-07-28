@@ -1,0 +1,43 @@
+/* =========================================================================
+   استایل‌های Scoped مربوط به MainLayout
+   این فایل باعث می‌شود هنگام Build فایل ScanSystem.Web.styles.css تولید شود
+   (در نبود هیچ فایل .razor.css آن bundle ساخته نمی‌شود و مرورگر خطای 404
+   می‌گیرد) و هم‌زمان نوار خطای Blazor به‌صورت پیش‌فرض مخفی بماند.
+   ========================================================================= */
+
+/* نوار خطای مدیریت‌نشده Blazor — فقط هنگام بروز خطا وقتی که JS آن را
+   با استایل inline به display:block تغییر می‌دهد، دیده می‌شود. */
+#blazor-error-ui {
+    color-scheme: light only;
+    background: #fff4d6;
+    border-top: 1px solid #eab308;
+    bottom: 0;
+    box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.18);
+    box-sizing: border-box;
+    direction: rtl;
+    display: none;
+    left: 0;
+    padding: 0.65rem 1.25rem 0.75rem 1.25rem;
+    position: fixed;
+    text-align: right;
+    width: 100%;
+    z-index: 1000;
+}
+
+    #blazor-error-ui .reload {
+        color: #1d4ed8;
+        font-weight: 700;
+        margin-inline-start: 0.5rem;
+        text-decoration: none;
+    }
+
+        #blazor-error-ui .reload:hover {
+            text-decoration: underline;
+        }
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        left: 0.75rem;
+        position: absolute;
+        top: 0.45rem;
+    }

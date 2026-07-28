@@ -47,3 +47,48 @@ h1:focus {
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
+
+/* =========================================================================
+   پشتیبان سراسری برای نوار خطای Blazor (blazor-error-ui)
+   -------------------------------------------------------------------------
+   این نوار باید به‌صورت پیش‌فرض مخفی باشد و فقط هنگام بروز خطای مدیریت‌نشده
+   نمایش داده شود (Blazor در آن موقع استایل inline display:block می‌گذارد).
+   قوانین اصلی در فایل‌های Scoped (MainLayout.razor.css / BlankLayout.razor.css)
+   تعریف شده‌اند و در bundle با نام ScanSystem.Web.styles.css منتشر می‌شوند؛
+   این نسخه سراسری تضمین می‌کند حتی اگر آن فایل لود نشود، نوار خطا
+   «همیشه» دیده نشود.
+   ========================================================================= */
+#blazor-error-ui {
+    background: #fff4d6;
+    border-top: 1px solid #eab308;
+    bottom: 0;
+    box-shadow: 0 -4px 18px rgba(15, 23, 42, 0.18);
+    box-sizing: border-box;
+    color-scheme: light only;
+    direction: rtl;
+    display: none;
+    left: 0;
+    padding: 0.65rem 1.25rem 0.75rem 1.25rem;
+    position: fixed;
+    text-align: right;
+    width: 100%;
+    z-index: 1000;
+}
+
+    #blazor-error-ui .reload {
+        color: #1d4ed8;
+        font-weight: 700;
+        margin-inline-start: 0.5rem;
+        text-decoration: none;
+    }
+
+        #blazor-error-ui .reload:hover {
+            text-decoration: underline;
+        }
+
+    #blazor-error-ui .dismiss {
+        cursor: pointer;
+        left: 0.75rem;
+        position: absolute;
+        top: 0.45rem;
+    }

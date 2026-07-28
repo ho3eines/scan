@@ -188,7 +188,12 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 - کدهای `RelationCode`، `InquiryCode` و `SoftwareCode` ابتدا روی `ScanRequests` ذخیره می‌شوند و هنگام `UploadPage`/Insert تصویر در `Images` نیز ثبت می‌شوند؛ لود گالری می‌تواند دقیقاً بر اساس همین کدها فیلتر شود.
 - `ConnectionId`های SignalR در حافظه (`AgentConnectionRegistry`) نگه‌داری می‌شوند؛ قطع Agent → `IsOnline=false` خودکار.
 - حداکثر حجم آپلود: 100MB (Kestrel + FormOptions) — قابل تغییر در `Program.cs`.
-- صفحه `/scan` از یک لایوت مینیمال (`BlankLayout`) و فایل CSS مستقل (`wwwroot/css/scan.css`، همه کلاس‌ها با پیشوند `sa-`) استفاده می‌کند و هیچ استایلی روی `html`/`body` اعمال نمی‌کند؛ به همین دلیل می‌توان آن را داخل یک پروژه دیگر (مثلاً به‌صورت iframe/صفحه جاسازی‌شده) بدون تداخل استایل استفاده کرد. تنها وابستگی ظاهری آن Bootstrap 5 + Bootstrap Icons است که باید در صفحهٔ میزبان لود شده باشند.
+- صفحه `/scan` از یک لایوت مینیمال (`BlankLayout`) و فایل CSS مستقل (`wwwroot/css/scan.css`، همه کلاس‌ها با پیشوند `sa-`) استفاده می‌کند و هیچ استایلی روی `html`/`body` اعمال نمی‌کند؛ به همین دلیل می‌توان آن را داخل یک پروژه دیگر (مثلاً به‌صورت iframe/صفحه جاسازی‌شده) بدون تداخل استایل استفاده کرد.
+- **بدون وابستگی به اینترنت/CDN:** فونت آیکون‌ها (Bootstrap Icons 1.11.3) به‌صورت محلی در `wwwroot/bootstrap-icons/` قرار دارد و همراه خود اپ سرو می‌شود؛ در شبکه‌های داخلی بدون اینترنت هم آیکون‌ها درست نمایش داده می‌شوند.
+- **برند و آیکون:** نام نمایشی برند **pdd Scan** است (کپشن پنجره‌های Agent، متن Tooltip آیکون Tray، عنوان صفحه و هدر صفحه اسکن). فایل‌های آیکون (زمینهٔ ترنسپرنت + روبان قرمز «pdd Scan»):
+  - وب: `src/ScanSystem.Web/wwwroot/favicon.png` و `src/ScanSystem.Web/wwwroot/img/pddscan-logo.png`
+  - ایجنت: `src/ScanSystem.Agent/appicon.ico` (چندسایزی برای Tray/Titlebar/Explorer) و `src/ScanSystem.Agent/logo.png`
+- نوار خطای Blazor (`#blazor-error-ui`) فقط هنگام خطای واقعی نمایش داده می‌شود؛ استایل پنهان‌سازی آن هم در Scoped CSS (که باعث تولید `ScanSystem.Web.styles.css` می‌شود) و هم به‌صورت پشتیبان در `wwwroot/app.css` تعریف شده است.
 
 ## فازهای بعدی (اختیاری طبق سفارش)
 

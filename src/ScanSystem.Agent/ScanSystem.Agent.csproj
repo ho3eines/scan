@@ -10,11 +10,23 @@
     <!-- برای آیکون Tray از System.Windows.Forms.NotifyIcon استفاده می‌شود -->
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- آیکون برنامه (فایل exe + نوار عنوان پنجره‌ها) -->
+    <ApplicationIcon>appicon.ico</ApplicationIcon>
     <AssemblyName>ScanSystem.Agent</AssemblyName>
     <RootNamespace>ScanSystem.Agent</RootNamespace>
     <Version>1.0.0</Version>
-    <Product>ScanSystem Agent</Product>
+    <Product>pdd Scan</Product>
+    <Title>pdd Scan</Title>
+    <Description>pdd Scan — ایجنت محلی اسکن مدارک روی ایستگاه کاری</Description>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- فایل‌های آیکون/لوگو داخل اسمبلی Resource می‌شوند تا در XAML و Tray قابل استفاده باشند -->
+    <Resource Include="appicon.ico" />
+    <Resource Include="logo.png" />
+    <None Remove="appicon.ico" />
+    <None Remove="logo.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- کلاینت SignalR برای ارتباط با Hub سرور -->

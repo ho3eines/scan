@@ -44,7 +44,7 @@ public partial class MainWindow : Window
 
         Loaded += async (_, _) =>
         {
-            Log($"Agent شروع به کار کرد. نام ماشین: {_machineName}");
+            Log($"pdd Scan شروع به کار کرد. نام ماشین: {_machineName}");
             DetectAndShowScanner();
             StartWorker();
             if (_settings.AutoConnect) await ConnectAsync();
@@ -134,14 +134,10 @@ public partial class MainWindow : Window
         {
             Log($"خطای اتصال: {ex.Message}");
 
-            System.Windows.MessageBox.Show($"خطا در اتصال:\n{ex.Message}", "خطا",
+            System.Windows.MessageBox.Show($"خطا در اتصال:\n{ex.Message}", "pdd Scan",
                 MessageBoxButton.OK, MessageBoxImage.Error);
 
             UpdateStatus(false);
-
-            System.Windows.MessageBox.Show($"خطا در اتصال:\n{ex.Message}", "خطا",
-                MessageBoxButton.OK, MessageBoxImage.Error);
-
         }
         finally
         {
@@ -315,12 +311,17 @@ public partial class MainWindow : Window
         {
             _tray = new System.Windows.Forms.NotifyIcon
             {
-                Icon = CreateTrayIconArt(),
-                Text = "ScanSystem Agent",
+                Icon = LoadAppIcon(),
+                Text = "pdd Scan",
                 Visible = true
             };
 
-            var menu = new System.Windows.Forms.ContextMenuStrip();
+            var menu = new System.Windows.Forms.ContextMenuStrip
+            {
+                // منوی فارسی و راست‌چین
+                RightToLeft = System.Windows.Forms.RightToLeft.Yes,
+                Font = new System.Drawing.Font("Segoe UI", 9F)
+            };
 
             menu.Items.Add("نمایش پنجره", null, (_, _) => ShowWindow());
 
@@ -359,7 +360,28 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>ساخت آیکون Tray به‌صورت برنامه‌ای (بدون نیاز به فایل ico).</summary>
+    /// <summary>
+    /// آیکون برنامه (pdd Scan) از Resource داخل اسمبلی (appicon.ico) خوانده می‌شود؛
+    /// در صورت هر خطا، آیکون برنامه‌ای ساده به‌عنوان جایگزین ساخته می‌شود.
+    /// </summary>
+    private static System.Drawing.Icon LoadAppIcon()
+    {
+        try
+        {
+            var sri = System.Windows.Application.GetResourceStream(
+                new Uri("pack://application:,,,/appicon.ico", UriKind.Absolute));
+            if (sri?.Stream is not null)
+            {
+                using var stream = sri.Stream;
+                using var icon = new System.Drawing.Icon(stream, 32, 32);
+                return (System.Drawing.Icon)icon.Clone();
+            }
+        }
+        catch { }
+        return CreateTrayIconArt();
+    }
+
+    /// <summary>ساخت آیکون Tray به‌صورت برنامه‌ای (جایگزین — بدون نیاز به فایل ico).</summary>
     private static System.Drawing.Icon CreateTrayIconArt()
     {
         using var bmp = new System.Drawing.Bitmap(32, 32);
@@ -462,17 +484,25 @@ public partial class MainWindow : Window
 
     private void UpdateStatus(bool connected)
     {
+        // رنگ‌های هماهنگ با طراحی جدید کارت وضعیت
+        var onlineBrush = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromRgb(0x16, 0xA3, 0x4A));   // #16A34A
+        var offlineBrush = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromRgb(0xDC, 0x26, 0x26));   // #DC2626
+
         if (connected)
         {
             txtStatus.Text = "آنلاین";
-            txtStatus.Foreground = System.Windows.Media.Brushes.Green;
+            txtStatus.Foreground = onlineBrush;
+            statusDot.Fill = onlineBrush;
             btnScan.IsEnabled = true;
             btnConnect.Content = "قطع اتصال";
         }
         else
         {
             txtStatus.Text = "آفلاین";
-            txtStatus.Foreground = System.Windows.Media.Brushes.Red;
+            txtStatus.Foreground = offlineBrush;
+            statusDot.Fill = offlineBrush;
             btnScan.IsEnabled = false;
             btnConnect.Content = "اتصال";
         }
