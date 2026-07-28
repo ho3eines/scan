@@ -39,6 +39,9 @@ BEGIN
         AgentId      UNIQUEIDENTIFIER NOT NULL,
         Status       NVARCHAR(50)     NOT NULL CONSTRAINT DF_ScanRequests_Status DEFAULT (N'Pending'),
         IsMultiPage  BIT              NOT NULL CONSTRAINT DF_ScanRequests_IsMultiPage DEFAULT (0),
+        RelationCode NVARCHAR(100)    NULL,
+        InquiryCode  NVARCHAR(100)    NULL,
+        SoftwareCode NVARCHAR(100)    NULL,
         CreatedAt    DATETIME         NOT NULL CONSTRAINT DF_ScanRequests_CreatedAt DEFAULT (SYSDATETIME()),
         CompletedAt  DATETIME         NULL,
         CONSTRAINT FK_ScanRequests_Agents
@@ -47,7 +50,15 @@ BEGIN
 END
 GO
 
-IF OBJECT_ID(N'IX_ScanRequests_AgentId', N'UQ') IS NULL
+IF COL_LENGTH(N'dbo.ScanRequests', N'RelationCode') IS NULL
+    ALTER TABLE dbo.ScanRequests ADD RelationCode NVARCHAR(100) NULL;
+IF COL_LENGTH(N'dbo.ScanRequests', N'InquiryCode') IS NULL
+    ALTER TABLE dbo.ScanRequests ADD InquiryCode NVARCHAR(100) NULL;
+IF COL_LENGTH(N'dbo.ScanRequests', N'SoftwareCode') IS NULL
+    ALTER TABLE dbo.ScanRequests ADD SoftwareCode NVARCHAR(100) NULL;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.ScanRequests') AND name = N'IX_ScanRequests_AgentId')
     CREATE INDEX IX_ScanRequests_AgentId ON dbo.ScanRequests(AgentId);
 GO
 
@@ -61,6 +72,9 @@ BEGIN
         FileName    NVARCHAR(255)    NULL,
         Data        VARBINARY(MAX)   NOT NULL,
         Thumbnail   VARBINARY(MAX)   NULL,
+        RelationCode NVARCHAR(100)    NULL,
+        InquiryCode  NVARCHAR(100)    NULL,
+        SoftwareCode NVARCHAR(100)    NULL,
         PageNumber  INT              NOT NULL CONSTRAINT DF_Images_PageNumber DEFAULT (1),
         CreatedAt   DATETIME         NOT NULL CONSTRAINT DF_Images_CreatedAt DEFAULT (SYSDATETIME()),
         CONSTRAINT FK_Images_ScanRequests
@@ -69,8 +83,20 @@ BEGIN
 END
 GO
 
-IF OBJECT_ID(N'IX_Images_RequestId', N'UQ') IS NULL
+IF COL_LENGTH(N'dbo.Images', N'RelationCode') IS NULL
+    ALTER TABLE dbo.Images ADD RelationCode NVARCHAR(100) NULL;
+IF COL_LENGTH(N'dbo.Images', N'InquiryCode') IS NULL
+    ALTER TABLE dbo.Images ADD InquiryCode NVARCHAR(100) NULL;
+IF COL_LENGTH(N'dbo.Images', N'SoftwareCode') IS NULL
+    ALTER TABLE dbo.Images ADD SoftwareCode NVARCHAR(100) NULL;
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Images') AND name = N'IX_Images_RequestId')
     CREATE INDEX IX_Images_RequestId ON dbo.Images(RequestId);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Images') AND name = N'IX_Images_ContextCodes')
+    CREATE INDEX IX_Images_ContextCodes ON dbo.Images(RelationCode, InquiryCode, SoftwareCode, CreatedAt);
 GO
 
 /* ──────────────────────────── ImageGroups ──────────────────────────── */
@@ -102,7 +128,7 @@ BEGIN
 END
 GO
 
-IF OBJECT_ID(N'IX_ImageGroupItems_GroupId', N'UQ') IS NULL
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.ImageGroupItems') AND name = N'IX_ImageGroupItems_GroupId')
     CREATE INDEX IX_ImageGroupItems_GroupId ON dbo.ImageGroupItems(GroupId);
 GO
 

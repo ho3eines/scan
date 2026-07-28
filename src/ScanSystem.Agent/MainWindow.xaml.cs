@@ -109,15 +109,26 @@ public partial class MainWindow : Window
                     Log("اتصال مجدد برقرار شد؛ ثبت‌نام دوباره انجام می‌شود.");
                 });
                 // ConnectionId جدید است → باید دوباره RegisterAgent صدا زده شود.
-                await RegisterAsync();
-                await Dispatcher.InvokeAsync(() => UpdateStatus(true));
+                var registered = await RegisterAsync();
+                await Dispatcher.InvokeAsync(() => UpdateStatus(registered));
+                if (!registered)
+                {
+                    await Dispatcher.InvokeAsync(() => Log("ثبت‌نام پس از اتصال مجدد انجام نشد؛ اتصال برای تلاش بعدی بسته می‌شود."));
+                    try { await _connection.StopAsync(); } catch { }
+                }
             };
 
             await _connection.StartAsync();
             Log("اتصال برقرار شد.");
 
-            await RegisterAsync();
-            UpdateStatus(true);
+            var registered = await RegisterAsync();
+            UpdateStatus(registered);
+
+            if (!registered)
+            {
+                Log("اتصال برقرار است، اما سرور Agent را ثبت نکرد. اتصال بسته می‌شود تا تلاش بعدی تمیز انجام شود.");
+                try { await _connection.StopAsync(); } catch { }
+            }
         }
         catch (Exception ex)
         {
@@ -132,19 +143,28 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task RegisterAsync()
+    private async Task<bool> RegisterAsync(int maxAttempts = 5)
     {
-        if (_connection is null) return;
-        try
+        if (_connection is null) return false;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            // قرارداد Hub: RegisterAgent(machineName)
-            await _connection.InvokeAsync("RegisterAgent", _machineName);
-            Log($"ثبت‌نام انجام شد: {_machineName}");
+            try
+            {
+                // قرارداد Hub: RegisterAgent(machineName)
+                await _connection.InvokeAsync("RegisterAgent", _machineName);
+                Log($"ثبت‌نام انجام شد: {_machineName}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Log($"ثبت‌نام ناموفق بود (تلاش {attempt}/{maxAttempts}): {ex.Message}");
+                if (attempt < maxAttempts)
+                    await Task.Delay(TimeSpan.FromMilliseconds(1200));
+            }
         }
-        catch (Exception ex)
-        {
-            Log($"ثبت‌نام ناموفق بود: {ex.Message}");
-        }
+
+        return false;
     }
 
     // ───────────────────────── صف داخلی + حلقه اسکن ─────────────────────────

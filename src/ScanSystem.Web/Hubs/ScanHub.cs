@@ -39,14 +39,29 @@ public class ScanHub : Hub
     // ───────────────────────── اسکن ─────────────────────────
 
     public async Task<Guid> RequestScan(string machineName, bool isMultiPage)
+        => await RequestScanWithContext(machineName, isMultiPage, null, null, null);
+
+    public async Task<Guid> RequestScanWithContext(
+        string machineName,
+        bool isMultiPage,
+        string? relationCode,
+        string? inquiryCode,
+        string? softwareCode)
     {
         if (string.IsNullOrWhiteSpace(machineName)) return Guid.Empty;
         machineName = machineName.Trim();
 
-        var id = await _service.CreateRequestAsync(machineName, isMultiPage);
+        var id = await _service.CreateRequestAsync(machineName, isMultiPage, relationCode, inquiryCode, softwareCode);
         if (id == Guid.Empty) return id;
 
-        _logger.LogInformation("Scan requested {Id} for {Machine} (multiPage={Mp})", id, machineName, isMultiPage);
+        _logger.LogInformation(
+            "Scan requested {Id} for {Machine} (multiPage={Mp}, relation={RelationCode}, inquiry={InquiryCode}, software={SoftwareCode})",
+            id,
+            machineName,
+            isMultiPage,
+            relationCode,
+            inquiryCode,
+            softwareCode);
 
         var connectionId = _connections.GetConnectionId(machineName);
         if (connectionId is null)
@@ -91,6 +106,7 @@ public class ScanHub : Hub
     {
         await _service.SetCompletedAsync(id);
         await Clients.All.SendAsync("ScanCompleted", id);
+        await Clients.All.SendAsync("GalleryChanged");
         await Clients.All.SendAsync("StatusChanged", id, ScanStatus.Done);
         await Clients.All.SendAsync("RequestsChanged");
     }

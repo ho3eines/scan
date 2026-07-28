@@ -300,24 +300,24 @@ h1:focus {
 .gallery-fullscreen {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.92);
+    background:
+        radial-gradient(circle at 30% 20%, rgba(13, 110, 253, 0.18), transparent 34%),
+        linear-gradient(135deg, rgba(2, 6, 23, 0.96), rgba(15, 23, 42, 0.93));
     z-index: 1080;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-direction: column;
+    padding: 24px 178px 24px 28px;
     animation: fadeIn 0.2s ease;
 }
-.gallery-fullscreen img {
-    max-width: 92vw;
-    max-height: 88vh;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-    border-radius: 6px;
-}
-.gallery-fullscreen .fs-exit {
-    position: fixed;
-    top: 18px;
-    inset-inline-end: 18px;
+.gallery-fullscreen .fs-preview-image {
+    max-width: min(100%, calc(100vw - 230px));
+    max-height: calc(100vh - 48px);
+    object-fit: contain;
+    box-shadow: 0 20px 70px rgba(0, 0, 0, 0.72);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    transition: opacity 0.18s ease, transform 0.18s ease;
 }
 
 /* چیپ Agent */
@@ -367,20 +367,176 @@ h1:focus {
     background-color: rgba(255, 255, 255, 0.08);
 }
 
-/* نوارابزار ویرایشگر فول‌اسکرین گالری */
-.gallery-fullscreen .fs-toolbar {
+/* پنل عملیات ویرایشگر فول‌اسکرین گالری */
+.gallery-fullscreen .fs-action-panel {
     position: fixed;
-    top: 18px;
-    inset-inline-start: 18px;
+    top: 50%;
+    right: 22px;
+    transform: translateY(-50%);
+    width: 138px;
     display: flex;
-    gap: 10px;
-    align-items: center;
+    flex-direction: column;
+    gap: 8px;
     z-index: 1090;
-    background: rgba(0, 0, 0, 0.45);
-    padding: 8px 12px;
-    border-radius: 12px;
-    backdrop-filter: blur(3px);
+    padding: 10px;
+    border-radius: 22px;
+    background: rgba(15, 23, 42, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 18px 55px rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
 }
-.gallery-fullscreen .fs-toolbar .btn {
+.fs-actions-title {
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 12px;
+    font-weight: 700;
+    text-align: center;
+    padding: 2px 4px 4px;
+}
+.fs-close-button {
+    width: 34px;
+    height: 34px;
+    border: 0;
+    border-radius: 12px;
+    color: #0f172a;
+    background: linear-gradient(135deg, #ffffff, #dbeafe);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: flex-start;
+    cursor: pointer;
+    box-shadow: 0 8px 22px rgba(255, 255, 255, 0.12);
+    transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+.fs-close-button:hover {
+    transform: translateY(-1px) scale(1.04);
+    box-shadow: 0 12px 28px rgba(255, 255, 255, 0.2);
+}
+.fs-action {
+    width: 100%;
+    min-height: 46px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 15px;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.07));
+    color: #f8fafc;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 9px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
     white-space: nowrap;
+    transition: transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+}
+.fs-action:hover {
+    transform: translateX(-3px);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.36), rgba(255, 255, 255, 0.12));
+    border-color: rgba(147, 197, 253, 0.56);
+    color: #fff;
+}
+.fs-action-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.16);
+    flex: 0 0 auto;
+}
+.fs-action.danger {
+    background: linear-gradient(135deg, rgba(220, 53, 69, 0.72), rgba(127, 29, 29, 0.58));
+    border-color: rgba(248, 113, 113, 0.44);
+}
+.fs-action.danger:hover {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.9), rgba(153, 27, 27, 0.72));
+}
+.fs-action.warning {
+    color: #1f2937;
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.95), rgba(251, 191, 36, 0.72));
+    border-color: rgba(253, 230, 138, 0.64);
+}
+.fs-action.warning .fs-action-icon {
+    background: rgba(255, 255, 255, 0.32);
+}
+.fs-group-field {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px;
+    border-radius: 15px;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.88);
+}
+.fs-group-field i { flex: 0 0 auto; }
+.fs-group-select {
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    border: 0;
+    border-radius: 10px;
+    font-size: 12px;
+    color: #111827;
+    background-color: rgba(255, 255, 255, 0.94);
+    box-shadow: none !important;
+}
+
+@media (max-width: 768px) {
+    .gallery-fullscreen {
+        padding: 76px 14px 146px;
+    }
+    .gallery-fullscreen .fs-preview-image {
+        max-width: 95vw;
+        max-height: calc(100vh - 230px);
+    }
+    .gallery-fullscreen .fs-action-panel {
+        top: auto;
+        right: 12px;
+        left: 12px;
+        bottom: 12px;
+        transform: none;
+        width: auto;
+        max-width: none;
+        flex-direction: row;
+        align-items: stretch;
+        overflow-x: auto;
+        border-radius: 18px;
+    }
+    .fs-actions-title { display: none; }
+    .fs-close-button { min-width: 42px; height: 42px; align-self: center; }
+    .fs-action { min-width: 112px; justify-content: center; }
+    .fs-group-field { min-width: 168px; }
+}
+
+/* زمینه اسکن دریافتی از Query String */
+.scan-context-strip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(25, 135, 84, 0.08));
+    border: 1px solid rgba(13, 110, 253, 0.14);
+}
+.scan-context-title {
+    color: #495057;
+    font-size: 12px;
+    font-weight: 700;
+}
+.scan-context-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    color: #0f172a;
+    background: rgba(255, 255, 255, 0.86);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    font-size: 12px;
+    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.05);
 }
