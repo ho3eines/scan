@@ -67,7 +67,10 @@ public class ScanHub : Hub
         var connectionId = _connections.GetConnectionId(machineName);
         if (connectionId is null)
         {
-            await _service.SetErrorAsync(id, $"Agent '{machineName}' آنلاین نیست.");
+            var offlineMessage = $"Agent '{machineName}' آنلاین نیست.";
+            await _service.SetErrorAsync(id, offlineMessage);
+            await Clients.All.SendAsync("StatusChanged", id, ScanStatus.Error);
+            await Clients.All.SendAsync("ScanError", id, offlineMessage);
             await Clients.All.SendAsync("RequestsChanged");
             return id;
         }
@@ -116,6 +119,7 @@ public class ScanHub : Hub
     {
         await _service.SetErrorAsync(id, message);
         await Clients.All.SendAsync("StatusChanged", id, ScanStatus.Error);
+        await Clients.All.SendAsync("ScanError", id, message);
         await Clients.All.SendAsync("RequestsChanged");
     }
 

@@ -5,6 +5,7 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <UseWPF>true</UseWPF>
     <!-- برای آیکون Tray از System.Windows.Forms.NotifyIcon استفاده می‌شود -->
     <UseWindowsForms>true</UseWindowsForms>

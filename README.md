@@ -107,6 +107,8 @@ dotnet run
 - Agent با **Machine Name** ثبت می‌شود و آیکون آن در **Tray** قرار می‌گیرد.
 - «شروع خودکار با ویندوز» از منوی Tray یا `"AutoStart": true` در `agentsettings.json`.
 - شروع مستقیم در Tray: `ScanSystem.Agent.exe --tray`
+- از پنجره Agent یا منوی Tray → **«تنظیمات اسکنر»**: لیست دستگاه‌های WIA شناسایی‌شده روی سیستم
+  نمایش داده می‌شود و می‌توانید مشخص کنید Agent با کدام اسکنر کار کند (`SelectedScannerId`).
 - تنظیمات در `agentsettings.json` کنار exe:
 
 ```json
@@ -115,12 +117,23 @@ dotnet run
   "AutoConnect": true,
   "StartMinimized": false,
   "AutoStart": false,
-  "MaxPages": 50
+  "MaxPages": 50,
+  "SelectedScannerId": "",
+  "UsePlaceholderWhenNoScanner": false,
+  "SkipBlankPages": false
 }
 ```
 
-- اگر اسکنر WIA موجود نباشد، Agent یک صفحه **شبیه‌سازی‌شده** ارسال می‌کند (مناسب تست end-to-end).
+- **رفتار پیش‌فرض جدید:** اگر اسکنری (یا اسکنر انتخاب‌شده) در دسترس نباشد، Agent دیگر به‌صورت خودکار
+  تصویر تستی/شبیه‌سازی‌شده نمی‌سازد. به‌جای آن به سرور خطای **«اسکنر تنظیم نیست»** گزارش می‌کند و
+  در صفحه `/scan` یک بنر هشدار نمایش داده می‌شود.
+  با فعال کردن تیک **«در صورت نبود اسکنر، تصویر آزمایشی (Placeholder) بسازد»** در «تنظیمات اسکنر»
+  (`UsePlaceholderWhenNoScanner: true`) می‌توانید رفتار قدیمی (ساخت صفحه تستی) را دوباره فعال کنید.
+- با فعال کردن تیک **«اگر صفحه اسکن‌شده کاملاً سفید/خالی بود، به سرور ارسال نشود»**
+  (`SkipBlankPages: true`) صفحاتی که کاملاً یکدست/سفید تشخیص داده شوند (مثلاً برگ خالی در ADF)
+  اصلاً به سرور آپلود نمی‌شوند.
 - اسکن چندصفحه‌ای (ADF): حلقه تا پایان Feeder؛ هر صفحه بلافاصله با `UploadPage` ارسال و در پایان `CompleteScan` صدا زده می‌شود.
+
 
 ## ۵) توزیع Agent
 
@@ -165,6 +178,7 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 | Client→Server | `UploadPage` | `requestId, fileName, contentType, data, pageNumber` |
 | Server→All | `AgentStatusChanged`, `AgentsChanged`, `RequestsChanged`, `GalleryChanged` | — |
 | Server→All | `PageUploaded` | `requestId, imageId, pageNumber` |
+| Server→All | `ScanError` | `requestId, message` — از جمله پیام «اسکنر تنظیم نیست.» وقتی Agent دستگاهی پیدا نکند |
 | Server→Agent | `ScanRequested` | `machineName, requestId, isMultiPage` |
 
 ## نکات فنی
@@ -174,7 +188,9 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 - کدهای `RelationCode`، `InquiryCode` و `SoftwareCode` ابتدا روی `ScanRequests` ذخیره می‌شوند و هنگام `UploadPage`/Insert تصویر در `Images` نیز ثبت می‌شوند؛ لود گالری می‌تواند دقیقاً بر اساس همین کدها فیلتر شود.
 - `ConnectionId`های SignalR در حافظه (`AgentConnectionRegistry`) نگه‌داری می‌شوند؛ قطع Agent → `IsOnline=false` خودکار.
 - حداکثر حجم آپلود: 100MB (Kestrel + FormOptions) — قابل تغییر در `Program.cs`.
+- صفحه `/scan` از یک لایوت مینیمال (`BlankLayout`) و فایل CSS مستقل (`wwwroot/css/scan.css`، همه کلاس‌ها با پیشوند `sa-`) استفاده می‌کند و هیچ استایلی روی `html`/`body` اعمال نمی‌کند؛ به همین دلیل می‌توان آن را داخل یک پروژه دیگر (مثلاً به‌صورت iframe/صفحه جاسازی‌شده) بدون تداخل استایل استفاده کرد. تنها وابستگی ظاهری آن Bootstrap 5 + Bootstrap Icons است که باید در صفحهٔ میزبان لود شده باشند.
 
 ## فازهای بعدی (اختیاری طبق سفارش)
 
 Retry خودکار، فشرده‌سازی تصاویر، خروجی PDF، واترمارک، OCR، Audit Log، کنترل دسترسی مبتنی بر نقش.
+
