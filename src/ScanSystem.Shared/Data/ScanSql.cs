@@ -46,9 +46,9 @@ public static class ScanSql
 
     // ───────────────────────── ScanRequests ─────────────────────────
     public const string RequestsCreate = @"
-        INSERT INTO dbo.ScanRequests (Id, AgentId, Status, IsMultiPage, CreatedAt)
+        INSERT INTO dbo.ScanRequests (Id, AgentId, Status, IsMultiPage, RelationCode, InquiryCode, SoftwareCode, CreatedAt)
         OUTPUT inserted.Id
-        VALUES (@Id, @AgentId, @Status, @IsMultiPage, SYSDATETIME());";
+        VALUES (@Id, @AgentId, @Status, @IsMultiPage, @RelationCode, @InquiryCode, @SoftwareCode, SYSDATETIME());";
 
     public const string RequestsSetStatus = @"
         UPDATE dbo.ScanRequests
@@ -71,7 +71,7 @@ public static class ScanSql
     public const string RequestsGetRecent = @"
         SELECT TOP (@Take)
                r.Id, r.AgentId, a.MachineName,
-               r.Status, r.IsMultiPage, r.CreatedAt, r.CompletedAt,
+               r.Status, r.IsMultiPage, r.RelationCode, r.InquiryCode, r.SoftwareCode, r.CreatedAt, r.CompletedAt,
                ImageCount = (SELECT COUNT(*) FROM dbo.Images i WHERE i.RequestId = r.Id)
         FROM dbo.ScanRequests r
         LEFT JOIN dbo.Agents a ON a.Id = r.AgentId
@@ -79,9 +79,13 @@ public static class ScanSql
 
     // ───────────────────────── Images ─────────────────────────
     public const string ImagesAdd = @"
-        INSERT INTO dbo.Images (Id, RequestId, FileName, Data, Thumbnail, PageNumber, CreatedAt)
+        INSERT INTO dbo.Images (Id, RequestId, FileName, Data, Thumbnail, RelationCode, InquiryCode, SoftwareCode, PageNumber, CreatedAt)
         OUTPUT inserted.Id
-        VALUES (@Id, @RequestId, @FileName, @Data, @Thumbnail, @PageNumber, SYSDATETIME());";
+        SELECT @Id, @RequestId, @FileName, @Data, @Thumbnail,
+               r.RelationCode, r.InquiryCode, r.SoftwareCode,
+               @PageNumber, SYSDATETIME()
+        FROM dbo.ScanRequests r
+        WHERE r.Id = @RequestId;";
 
     public const string ImagesGetData = @"
         SELECT Data FROM dbo.Images WHERE Id = @Id;";
@@ -106,7 +110,9 @@ public static class ScanSql
         {0};";
 
     public const string GalleryPage = @"
-        SELECT i.Id, i.RequestId, i.FileName, i.PageNumber, i.CreatedAt,
+        SELECT i.Id, i.RequestId, i.FileName, i.PageNumber,
+               i.RelationCode, i.InquiryCode, i.SoftwareCode,
+               i.CreatedAt,
                a.MachineName AS AgentMachineName,
                ({0}) AS Groups,
                CASE WHEN i.Thumbnail IS NOT NULL THEN CAST(1 AS BIT) ELSE CAST(0 AS BIT) END AS HasThumbnail

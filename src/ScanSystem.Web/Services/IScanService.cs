@@ -17,7 +17,7 @@ public interface IScanService
     Task<int> DeleteAgentAsync(Guid id);
 
     // ── درخواست‌های اسکن ──
-    Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage);
+    Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage, string? relationCode, string? inquiryCode, string? softwareCode);
     Task SetProcessingAsync(Guid id);
     Task SetCompletedAsync(Guid id);
     Task SetErrorAsync(Guid id, string error);
@@ -26,7 +26,14 @@ public interface IScanService
 
     // ── تصاویر / گالری ──
     Task<Guid> SavePageAsync(Guid requestId, string fileName, byte[] data, int pageNumber);
-    Task<(DataTable data, int total)> GetGalleryPageAsync(int skip, int take, Guid? groupId, string? machineName);
+    Task<(DataTable data, int total)> GetGalleryPageAsync(
+        int skip,
+        int take,
+        Guid? groupId,
+        string? machineName,
+        string? relationCode,
+        string? inquiryCode,
+        string? softwareCode);
     Task<byte[]?> GetImageDataAsync(Guid id);
     Task<byte[]?> GetImageThumbnailAsync(Guid id);
     Task DeleteImageAsync(Guid id);

@@ -78,7 +78,7 @@ public class ScanService : IScanService
 
     // ───────────────────────── درخواست‌های اسکن ─────────────────────────
 
-    public async Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage)
+    public async Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage, string? relationCode, string? inquiryCode, string? softwareCode)
     {
         if (string.IsNullOrWhiteSpace(machineName)) return Guid.Empty;
         machineName = machineName.Trim();
@@ -91,7 +91,7 @@ public class ScanService : IScanService
         }
         if (agent is null) return Guid.Empty;
 
-        return await _db.CreateRequestAsync((Guid)agent["Id"], isMultiPage);
+        return await _db.CreateRequestAsync((Guid)agent["Id"], isMultiPage, relationCode, inquiryCode, softwareCode);
     }
 
     public async Task SetProcessingAsync(Guid id) => await _db.SetRequestStatusAsync(id, ScanStatus.Processing);
@@ -116,8 +116,15 @@ public class ScanService : IScanService
         return await _db.SaveImageAsync(requestId, fileName, data, thumbnail, pageNumber);
     }
 
-    public async Task<(DataTable data, int total)> GetGalleryPageAsync(int skip, int take, Guid? groupId, string? machineName)
-        => await _db.GetGalleryAsync(skip, take, groupId, machineName);
+    public async Task<(DataTable data, int total)> GetGalleryPageAsync(
+        int skip,
+        int take,
+        Guid? groupId,
+        string? machineName,
+        string? relationCode,
+        string? inquiryCode,
+        string? softwareCode)
+        => await _db.GetGalleryAsync(skip, take, groupId, machineName, relationCode, inquiryCode, softwareCode);
 
     public async Task<byte[]?> GetImageDataAsync(Guid id) => await _db.GetImageDataAsync(id);
     public async Task<byte[]?> GetImageThumbnailAsync(Guid id) => await _db.GetImageThumbnailAsync(id);
