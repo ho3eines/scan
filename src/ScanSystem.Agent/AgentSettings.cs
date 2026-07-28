@@ -21,6 +21,26 @@ public class AgentSettings
     /// <summary>حداکثر تعداد صفحات در یک اسکن چندصفحه‌ای (ADF).</summary>
     public int MaxPages { get; set; } = 50;
 
+    /// <summary>
+    /// شناسه (DeviceID) اسکنر انتخاب‌شده توسط کاربر. خالی = انتخاب خودکار اولین اسکنر موجود.
+    /// از منوی «تنظیمات اسکنر» در پنجره Agent قابل انتخاب است.
+    /// </summary>
+    public string SelectedScannerId { get; set; } = "";
+
+    /// <summary>
+    /// اگر true باشد و هنگام اسکن هیچ اسکنری در دسترس نباشد، Agent یک تصویر آزمایشی (Placeholder)
+    /// می‌سازد و به سرور ارسال می‌کند — دقیقاً مثل رفتار قبلی برنامه.
+    /// اگر false باشد (پیش‌فرض جدید)، در نبود اسکنر هیچ تصویری ساخته نمی‌شود و به سرور
+    /// خطای «اسکنر تنظیم نیست» گزارش می‌شود.
+    /// </summary>
+    public bool UsePlaceholderWhenNoScanner { get; set; } = false;
+
+    /// <summary>
+    /// اگر true باشد، صفحاتی که کاملاً سفید/خالی تشخیص داده شوند، به سرور ارسال نمی‌شوند
+    /// (مثلاً وقتی ADF یک برگ خالی را هم اسکن کرده باشد).
+    /// </summary>
+    public bool SkipBlankPages { get; set; } = false;
+
     private static string FilePath
         => System.IO.Path.Combine(AppContext.BaseDirectory, "agentsettings.json");
 

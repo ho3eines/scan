@@ -37,7 +37,16 @@
         <GroupBox Grid.Row="2" Header="وضعیت" Margin="0,0,0,10">
             <StackPanel>
                 <TextBlock x:Name="txtStatus" Text="آفلاین" Foreground="Red" FontWeight="Bold"/>
-                <TextBlock x:Name="txtScanner" Text="" Foreground="Gray" Margin="0,3,0,0" FontSize="11"/>
+                <Grid Margin="0,3,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" x:Name="txtScanner" Text="" Foreground="Gray" FontSize="11"
+                               VerticalAlignment="Center" TextWrapping="Wrap"/>
+                    <Button Grid.Column="1" x:Name="btnScannerSettings" Content="تنظیمات اسکنر"
+                            Click="BtnScannerSettings_Click" Padding="6,2" FontSize="11" Margin="8,0,0,0"/>
+                </Grid>
                 <TextBlock x:Name="txtLastScan" Text="" Foreground="Gray" Margin="0,3,0,0" FontSize="11"/>
             </StackPanel>
         </GroupBox>

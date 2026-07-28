@@ -6,45 +6,76 @@ namespace ScanSystem.Agent;
 /// <summary>
 /// ارتباط با اسکنر از طریق WIA (COM late-bound — بدون نیاز به Interop DLL).
 /// - اسکن تک‌صفحه‌ای یا چندصفحه‌ای از Feeder/ADF (حلقه تا پایان کاغذ)
-/// - اگر دستگاه WIA موجود نباشد، به اسکن شبیه‌سازی‌شده برمی‌گردد (مناسب تست).
+/// - لیست کردن اسکنرهای موجود روی سیستم برای انتخاب توسط کاربر
+/// - تصویر شبیه‌سازی‌شده فقط زمانی ساخته می‌شود که کاربر صراحتاً آن را در تنظیمات فعال کرده باشد؛
+///   در غیر این صورت وقتی اسکنری یافت نشود، خطای «اسکنر تنظیم نیست» گزارش می‌شود.
 /// </summary>
 public class WiaScannerService
 {
-    private bool? _hasScanner;
+    /// <summary>اطلاعات نمایشی یک دستگاه WIA (برای پر کردن لیست انتخاب در UI).</summary>
+    public sealed record ScannerInfo(string Id, string Name);
 
-    /// <summary>آیا حداقل یک WIA device (اسکنر) روی سیستم موجود است؟</summary>
-    public bool DetectScanner()
+    /// <summary>آیا اسکنر مورد نظر (یا هر اسکنری، اگر شناسه مشخص نشده) روی سیستم موجود است؟</summary>
+    public bool DetectScanner(string? preferredDeviceId = null)
     {
-        if (_hasScanner.HasValue) return _hasScanner.Value;
         try
         {
-            var deviceManagerType = Type.GetTypeFromProgID("WIA.DeviceManager");
-            if (deviceManagerType == null) { _hasScanner = false; return false; }
-            dynamic manager = Activator.CreateInstance(deviceManagerType)!;
-
-            int scannerCount = 0;
-            foreach (dynamic info in manager.DeviceInfos)
-            {
-                // Type == 1 یعنی Scanner
-                if ((int)info.Type == 1) scannerCount++;
-            }
-            _hasScanner = scannerCount > 0;
+            var scanners = ListScanners();
+            if (scanners.Count == 0) return false;
+            if (string.IsNullOrWhiteSpace(preferredDeviceId)) return true;
+            return scanners.Any(s => string.Equals(s.Id, preferredDeviceId, StringComparison.OrdinalIgnoreCase));
         }
         catch
         {
-            _hasScanner = false;
+            return false;
         }
-        return _hasScanner.Value;
+    }
+
+    /// <summary>لیست تمام دستگاه‌های اسکنر شناسایی‌شده توسط WIA روی این سیستم.</summary>
+    public List<ScannerInfo> ListScanners()
+    {
+        var result = new List<ScannerInfo>();
+        try
+        {
+            var deviceManagerType = Type.GetTypeFromProgID("WIA.DeviceManager");
+            if (deviceManagerType == null) return result;
+            dynamic manager = Activator.CreateInstance(deviceManagerType)!;
+
+            foreach (dynamic info in manager.DeviceInfos)
+            {
+                if ((int)info.Type != 1) continue; // فقط Scanner
+
+                string id;
+                try { id = (string)info.DeviceID; }
+                catch { continue; }
+
+                var name = WiaCom.TryGetNamedProperty(info, "Name") ?? id;
+                result.Add(new ScannerInfo(id, name));
+            }
+        }
+        catch
+        {
+            // در صورت هر خطا، لیست خالی برگردانده می‌شود.
+        }
+        return result;
     }
 
     /// <summary>
     /// ساخت یک نشست اسکن. هر بار NextPage() یک صفحه برمی‌گرداند؛
     /// وقتی feeder تمام شود یا به سقف صفحات برسیم، null برمی‌گردد.
     /// </summary>
-    public ScanSession CreateSession(string machineName, int maxPages)
-        => new(machineName, maxPages);
+    /// <param name="machineName">نام ماشین (برای تصویر آزمایشی).</param>
+    /// <param name="maxPages">حداکثر تعداد صفحات.</param>
+    /// <param name="allowBlankPlaceholder">
+    /// اگر true باشد و اسکنری یافت نشود، به‌جای گزارش خطا یک تصویر آزمایشی ساخته می‌شود.
+    /// اگر false باشد (پیش‌فرض)، نبود اسکنر باعث می‌شود <see cref="ScanSession.ScannerMissing"/> برابر true شود
+    /// و هیچ تصویری تولید نگردد.
+    /// </param>
+    /// <param name="preferredDeviceId">شناسه اسکنر انتخاب‌شده توسط کاربر؛ خالی/نال = انتخاب خودکار اولین دستگاه.</param>
+    public ScanSession CreateSession(string machineName, int maxPages, bool allowBlankPlaceholder = false, string? preferredDeviceId = null)
+        => new(machineName, maxPages, allowBlankPlaceholder, preferredDeviceId);
 
-    /// <summary>ساخت تصویر شبیه‌سازی‌شده (زمانی که دستگاه WIA در دسترس نیست).</summary>
+    /// <summary>ساخت تصویر شبیه‌سازی‌شده (فقط وقتی صریحاً در تنظیمات Agent فعال شده باشد).</summary>
     public static byte[] SimulateScan(string machineName, int pageNumber)
     {
         using var bitmap = new System.Drawing.Bitmap(800, 1050); // نسبت A4
@@ -66,6 +97,93 @@ public class WiaScannerService
         bitmap.Save(ms, System.Drawing.Imaging.ImageFormat.Jpeg);
         return ms.ToArray();
     }
+
+    /// <summary>
+    /// آیا تصویر داده‌شده عملاً «سفید/خالی» است؟ بر اساس انحراف معیار روشنایی پیکسل‌های نمونه‌برداری‌شده.
+    /// </summary>
+    /// <param name="jpegBytes">داده تصویر JPEG.</param>
+    /// <param name="stdDevThreshold">آستانه انحراف معیار روشنایی؛ کمتر از این مقدار یعنی صفحه یکنواخت (خالی) است.</param>
+    /// <param name="minBrightness">حداقل میانگین روشنایی لازم برای این‌که یکنواختی به‌معنای «سفید» باشد (نه یکدست تیره).</param>
+    public static bool IsBlankPage(byte[] jpegBytes, double stdDevThreshold = 8.0, double minBrightness = 200.0)
+    {
+        if (jpegBytes is null || jpegBytes.Length == 0) return false;
+        try
+        {
+            using var ms = new System.IO.MemoryStream(jpegBytes);
+            using var bitmap = new System.Drawing.Bitmap(ms);
+
+            int width = bitmap.Width;
+            int height = bitmap.Height;
+            if (width <= 0 || height <= 0) return false;
+
+            // نمونه‌برداری شبکه‌ای برای عملکرد بهتر روی تصاویر بزرگ (حداکثر ~200 نمونه در هر بعد).
+            int stepX = Math.Max(1, width / 200);
+            int stepY = Math.Max(1, height / 200);
+
+            double sum = 0;
+            double sumSq = 0;
+            long count = 0;
+
+            using var locked = new LockedBitmapReader(bitmap);
+            for (int y = 0; y < height; y += stepY)
+            {
+                for (int x = 0; x < width; x += stepX)
+                {
+                    var gray = locked.GetGray(x, y);
+                    sum += gray;
+                    sumSq += gray * gray;
+                    count++;
+                }
+            }
+
+            if (count == 0) return false;
+
+            double mean = sum / count;
+            double variance = (sumSq / count) - (mean * mean);
+            double stdDev = Math.Sqrt(Math.Max(0, variance));
+
+            return stdDev < stdDevThreshold && mean >= minBrightness;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>خواننده سریع پیکسل‌ها با LockBits (سریع‌تر از GetPixel).</summary>
+    private sealed class LockedBitmapReader : IDisposable
+    {
+        private readonly System.Drawing.Bitmap _bitmap;
+        private readonly System.Drawing.Imaging.BitmapData _data;
+        private readonly int _bytesPerPixel;
+
+        public LockedBitmapReader(System.Drawing.Bitmap bitmap)
+        {
+            _bitmap = bitmap;
+            var format = System.Drawing.Imaging.PixelFormat.Format24bppRgb;
+            _data = bitmap.LockBits(
+                new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height),
+                System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                format);
+            _bytesPerPixel = System.Drawing.Image.GetPixelFormatSize(format) / 8;
+        }
+
+        public double GetGray(int x, int y)
+        {
+            unsafe
+            {
+                byte* row = (byte*)_data.Scan0 + (y * _data.Stride);
+                byte* pixel = row + (x * _bytesPerPixel);
+                // ترتیب BGR
+                byte b = pixel[0];
+                byte g = pixel[1];
+                byte r = pixel[2];
+                return (0.299 * r) + (0.587 * g) + (0.114 * b);
+            }
+        }
+
+        public void Dispose() => _bitmap.UnlockBits(_data);
+    }
 }
 
 /// <summary>
@@ -73,7 +191,9 @@ public class WiaScannerService
 /// ترتیب تلاش:
 ///   1) حلقه ADF/Feeder (تا زمانی که وضعیت FEED_READY برقرار است)
 ///   2) دیالوگ تک‌صفحه‌ای WIA (برای اسکنرهای Flatbed)
-///   3) تصویر شبیه‌سازی‌شده (وقتی هیچ دستگاهی نیست)
+///   3) تصویر شبیه‌سازی‌شده — فقط اگر <see cref="ScanSession(string,int,bool,string?)"/> با allowBlankPlaceholder=true ساخته شده باشد.
+/// اگر هیچ اسکنری (یا اسکنر انتخاب‌شده) یافت نشود و پلیس‌هولدر مجاز نباشد، <see cref="ScannerMissing"/> برابر true می‌شود
+/// و NextPage() بدون تولید هیچ تصویری null برمی‌گرداند.
 /// </summary>
 public sealed class ScanSession : IDisposable
 {
@@ -86,19 +206,23 @@ public sealed class ScanSession : IDisposable
 
     private readonly string _machineName;
     private readonly int _maxPages;
+    private readonly bool _allowBlankPlaceholder;
     private dynamic? _device;
     private bool _simulate;
-    private bool _simulateDone;
     private int _pageCount;
 
-    internal ScanSession(string machineName, int maxPages)
+    /// <summary>true یعنی اسکنر (یا اسکنر انتخاب‌شده) یافت نشد و هیچ تصویر آزمایشی هم تولید نشده است.</summary>
+    public bool ScannerMissing { get; private set; }
+
+    internal ScanSession(string machineName, int maxPages, bool allowBlankPlaceholder, string? preferredDeviceId)
     {
         _machineName = machineName;
         _maxPages = Math.Max(1, maxPages);
-        InitDevice();
+        _allowBlankPlaceholder = allowBlankPlaceholder;
+        InitDevice(preferredDeviceId);
     }
 
-    private void InitDevice()
+    private void InitDevice(string? preferredDeviceId)
     {
         try
         {
@@ -106,45 +230,69 @@ public sealed class ScanSession : IDisposable
             if (dmType is null) throw new InvalidOperationException("WIA در دسترس نیست");
 
             dynamic dm = Activator.CreateInstance(dmType)!;
+
+            dynamic? matched = null;
+            dynamic? first = null;
+            var hasPreferred = !string.IsNullOrWhiteSpace(preferredDeviceId);
+
             foreach (dynamic info in dm.DeviceInfos)
             {
-                if ((int)info.Type == 1) // Scanner
+                if ((int)info.Type != 1) continue; // فقط Scanner
+                first ??= info;
+
+                if (hasPreferred)
                 {
-                    _device = info.Connect();
-                    break;
+                    string devId;
+                    try { devId = (string)info.DeviceID; }
+                    catch { continue; }
+
+                    if (string.Equals(devId, preferredDeviceId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        matched = info;
+                        break;
+                    }
                 }
             }
-            if (_device is null) throw new InvalidOperationException("اسکنری یافت نشد");
+
+            // اگر کاربر اسکنر خاصی انتخاب کرده اما یافت نشد → همان را «نبود اسکنر» تلقی می‌کنیم
+            // (به‌جای برگشت خاموش به اولین دستگاه دیگر).
+            dynamic? chosen = hasPreferred ? matched : first;
+
+            if (chosen is null) throw new InvalidOperationException("اسکنری یافت نشد");
+
+            _device = chosen.Connect();
 
             // انتخاب حالت Feeder (برای اسکنرهای بدون ADF بی‌اثر و بی‌خطا رد می‌شود).
-            TrySetProperty(_device.Properties, PropDocumentHandlingSelect, HandlingSelectFeeder);
+            WiaCom.TrySetProperty(_device.Properties, PropDocumentHandlingSelect, HandlingSelectFeeder);
         }
         catch
         {
             _device = null;
-            _simulate = true;
+            ScannerMissing = true;
+            // فقط وقتی کاربر صراحتاً اجازه داده، به حالت تصویر آزمایشی سوییچ می‌کنیم.
+            _simulate = _allowBlankPlaceholder;
         }
     }
 
-    /// <summary>صفحه بعدی (byte[] JPEG) یا null در پایان اسکن.</summary>
+    /// <summary>صفحه بعدی (byte[] JPEG) یا null در پایان اسکن / نبود اسکنر.</summary>
     public byte[]? NextPage()
     {
         if (_pageCount >= _maxPages) return null;
 
         byte[]? bytes = null;
 
-        if (!_simulate)
+        if (_device is not null)
             bytes = TryScanFromFeeder();
 
         // صفحه اول هنوز گرفته نشده و feeder جواب نداد → یک‌بار دیالوگ/flatbed
-        if (bytes is null && _pageCount == 0 && !_simulate)
+        if (bytes is null && _pageCount == 0 && _device is not null)
             bytes = TryDialogScan();
 
-        // هیچ دستگاهی در دسترس نبود → شبیه‌سازی
-        if (bytes is null && _pageCount == 0)
+        // هیچ دستگاهی در دسترس نبود، اما تصویر آزمایشی مجاز است → شبیه‌سازی
+        if (bytes is null && _pageCount == 0 && _simulate)
             bytes = WiaScannerService.SimulateScan(_machineName, 1);
 
-        if (bytes is null) return null; // feeder تمام شد
+        if (bytes is null) return null; // feeder تمام شد، یا اسکنری در دسترس نیست
 
         _pageCount++;
         return bytes;
@@ -157,11 +305,11 @@ public sealed class ScanSession : IDisposable
         {
             if (_device is null) return null;
 
-            var status = TryGetProperty(_device.Properties, PropDocumentHandlingStatus);
+            var status = WiaCom.TryGetProperty(_device.Properties, PropDocumentHandlingStatus);
             if (status is not int s || (s & HandlingStatusFeedReady) == 0)
                 return null; // کاغذی در feeder نیست
 
-            dynamic? item = GetIndexedMember(_device.Items, 1);
+            dynamic? item = WiaCom.GetIndexedMember(_device.Items, 1);
             if (item is null) return null;
 
             dynamic imageFile = item.Transfer(WiaFormatJpeg);
@@ -204,10 +352,18 @@ public sealed class ScanSession : IDisposable
         return bytes;
     }
 
-    // ─────────── helpers برای COM late-bound ───────────
+    public void Dispose()
+    {
+        // رها کردن مرجع COM
+        _device = null;
+    }
+}
 
-    /// <summary>خواندن یک عضو indexed از COM collection (مثل DeviceItems.Item(1)).</summary>
-    private static object? GetIndexedMember(object collection, object index)
+/// <summary>توابع کمکی مشترک برای کار با COM late-bound (WIA).</summary>
+internal static class WiaCom
+{
+    /// <summary>خواندن یک عضو indexed از COM collection (مثل DeviceItems.Item(1) یا Properties.Item("Name")).</summary>
+    public static object? GetIndexedMember(object collection, object index)
     {
         try
         {
@@ -219,7 +375,7 @@ public sealed class ScanSession : IDisposable
     }
 
     /// <summary>خواندن مقدار یک WIA Property با شناسه عددی.</summary>
-    private static object? TryGetProperty(object properties, int propertyId)
+    public static object? TryGetProperty(object properties, int propertyId)
     {
         try
         {
@@ -232,8 +388,29 @@ public sealed class ScanSession : IDisposable
         catch { return null; }
     }
 
+    /// <summary>خواندن مقدار یک WIA Property با نام (مثل "Name" روی DeviceInfo).</summary>
+    public static string? TryGetNamedProperty(object infoOrProperties, string propertyName)
+    {
+        try
+        {
+            var props = infoOrProperties.GetType().InvokeMember("Properties",
+                BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance,
+                null, infoOrProperties, null);
+            if (props is null) return null;
+
+            var prop = GetIndexedMember(props, propertyName);
+            if (prop is null) return null;
+
+            var value = prop.GetType().InvokeMember("Value",
+                BindingFlags.GetProperty | BindingFlags.Public | BindingFlags.Instance,
+                null, prop, null);
+            return value?.ToString();
+        }
+        catch { return null; }
+    }
+
     /// <summary>تنظیم مقدار یک WIA Property (مثلاً انتخاب Feeder).</summary>
-    private static void TrySetProperty(object properties, int propertyId, object value)
+    public static void TrySetProperty(object properties, int propertyId, object value)
     {
         try
         {
@@ -247,11 +424,5 @@ public sealed class ScanSession : IDisposable
         {
             // اسکنرهای Flatbed این Property را ندارند — نادیده گرفته می‌شود.
         }
-    }
-
-    public void Dispose()
-    {
-        // رها کردن مرجع COM
-        _device = null;
     }
 }

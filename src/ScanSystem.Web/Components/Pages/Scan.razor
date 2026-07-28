@@ -1,6 +1,7 @@
 @page "/"
 @page "/scan"
 @rendermode InteractiveServer
+@layout ScanSystem.Web.Components.Layout.BlankLayout
 @using System.Data
 @using Microsoft.AspNetCore.SignalR.Client
 @using ScanSystem.Shared
@@ -12,122 +13,143 @@
 
 <PageTitle>اسکن مدارک</PageTitle>
 
+<HeadContent>
+    <link rel="stylesheet" href="css/scan.css" />
+</HeadContent>
+
 @if (isScanning)
 {
     <LoadingOverlay Title="در حال اسکن..." Subtitle="لطفاً سند را در اسکنر قرار دهید" />
 }
 
-<div class="container-fluid mt-3" dir="rtl">
-    <!-- هدر + تنظیمات -->
-    <div class="card shadow-sm mb-3">
-        <div class="card-body py-2">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h5 class="mb-0"><i class="bi bi-camera-fill text-primary"></i> اسکن مدارک</h5>
-                <div class="d-flex align-items-center gap-2 flex-wrap">
-                    <span class="agent-dot @(isConnected ? "online" : "offline")"></span>
-                    <small class="text-muted">@(isConnected ? "سرور متصل" : "سرور قطع")</small>
-                </div>
-            </div>
-
-            <hr class="my-2" />
-
-            <div class="d-flex align-items-center flex-wrap gap-3">
-                <div class="d-flex align-items-center gap-2">
-                    <label class="form-label mb-0 small text-muted">دستگاه:</label>
-                    @if (agents == null)
-                    {
-                        <select class="form-select form-select-sm" disabled style="min-width:160px">
-                            <option>در حال بارگذاری...</option>
-                        </select>
-                    }
-                    else if (agents.Rows.Count == 0)
-                    {
-                        <select class="form-select form-select-sm" disabled style="min-width:160px">
-                            <option>بدون Agent</option>
-                        </select>
-                        <small class="text-danger">ابتدا Agent را اجرا و متصل کنید.</small>
-                    }
-                    else
-                    {
-                        <select class="form-select form-select-sm" style="min-width:160px" @bind="selectedMachine" @bind:after="OnMachineChanged">
-                            <option value="">— انتخاب کنید —</option>
-                            @foreach (DataRow row in agents.Rows)
-                            {
-                                var name = Str(row, "MachineName");
-                                var online = Bool(row, "IsOnline");
-                                <option value="@name">
-                                    @name @(online ? "✓" : "✗")
-                                </option>
-                            }
-                        </select>
-                        <span class="badge @(selectedOnline ? "bg-success" : "bg-secondary")">
-                            @(selectedOnline ? "آنلاین" : "آفلاین")
-                        </span>
-                    }
-                </div>
-
-                <div class="form-check form-switch mb-0">
-                    <input class="form-check-input" type="checkbox" id="chkMultiPage" @bind="multiPage" @bind:after="OnMultiPageChanged" />
-                    <label class="form-check-label small" for="chkMultiPage">چندصفحه‌ای (ADF)</label>
-                </div>
-
-                <button class="btn btn-success btn-sm" @onclick="StartScan" disabled="@(!CanScan)">
-                    @if (isScanning)
-                    {
-                        <span class="spinner-border spinner-border-sm me-1"></span>
-                    }
-                    else
-                    {
-                        <i class="bi bi-camera me-1"></i>
-                    }
-                    شروع اسکن
-                </button>
-
-                <button class="btn btn-outline-secondary btn-sm" @onclick="RefreshAll">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
-            </div>
-
-            @if (HasScanContext)
-            {
-                <div class="scan-context-strip mt-2">
-                    <span class="scan-context-title"><i class="bi bi-link-45deg"></i> زمینه اسکن</span>
-                    @if (!string.IsNullOrEmpty(CurrentRelationCode))
-                    {
-                        <span class="scan-context-chip">ریلیشن: <b>@CurrentRelationCode</b></span>
-                    }
-                    @if (!string.IsNullOrEmpty(CurrentInquiryCode))
-                    {
-                        <span class="scan-context-chip">اینکویری: <b>@CurrentInquiryCode</b></span>
-                    }
-                    @if (!string.IsNullOrEmpty(CurrentSoftwareCode))
-                    {
-                        <span class="scan-context-chip">سافتور: <b>@CurrentSoftwareCode</b></span>
-                    }
-                </div>
-            }
+<div class="scan-app" dir="rtl">
+    <!-- نوار بالایی: هدر + وضعیت اتصال + کنترل‌های اسکن -->
+    <div class="sa-toolbar">
+        <div class="sa-toolbar-top">
+            <h5 class="sa-title">
+                <span class="sa-title-icon"><i class="bi bi-camera-fill"></i></span>
+                اسکن مدارک
+            </h5>
+            <span class="sa-pill @(isConnected ? "online" : "offline")">
+                <span class="sa-dot"></span>
+                @(isConnected ? "سرور متصل" : "سرور قطع")
+            </span>
         </div>
+
+        <hr class="sa-sep" />
+
+        <div class="sa-controls">
+            <div class="d-flex align-items-center gap-2">
+                <span class="sa-field-label">دستگاه:</span>
+                @if (agents == null)
+                {
+                    <select class="form-select form-select-sm sa-select" disabled>
+                        <option>در حال بارگذاری...</option>
+                    </select>
+                }
+                else if (agents.Rows.Count == 0)
+                {
+                    <select class="form-select form-select-sm sa-select" disabled>
+                        <option>بدون Agent</option>
+                    </select>
+                    <small class="text-danger">ابتدا Agent را اجرا و متصل کنید.</small>
+                }
+                else
+                {
+                    <select class="form-select form-select-sm sa-select" @bind="selectedMachine" @bind:after="OnMachineChanged">
+                        <option value="">— انتخاب کنید —</option>
+                        @foreach (DataRow row in agents.Rows)
+                        {
+                            var name = Str(row, "MachineName");
+                            var online = Bool(row, "IsOnline");
+                            <option value="@name">
+                                @name @(online ? "✓" : "✗")
+                            </option>
+                        }
+                    </select>
+                    <span class="sa-pill @(selectedOnline ? "online" : "offline")">
+                        <span class="sa-dot"></span>
+                        @(selectedOnline ? "آنلاین" : "آفلاین")
+                    </span>
+                }
+            </div>
+
+            <div class="form-check form-switch sa-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="chkMultiPage" @bind="multiPage" @bind:after="OnMultiPageChanged" />
+                <label class="form-check-label" for="chkMultiPage">چندصفحه‌ای (ADF)</label>
+            </div>
+
+            <button class="sa-btn sa-btn-primary" @onclick="StartScan" disabled="@(!CanScan)">
+                @if (isScanning)
+                {
+                    <span class="spinner-border spinner-border-sm"></span>
+                }
+                else
+                {
+                    <i class="bi bi-camera"></i>
+                }
+                شروع اسکن
+            </button>
+
+            <button class="sa-btn sa-btn-ghost" @onclick="RefreshAll" title="به‌روزرسانی">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+
+        @if (HasScanContext)
+        {
+            <div class="sa-context-strip">
+                <span class="sa-context-title"><i class="bi bi-link-45deg"></i> زمینه اسکن</span>
+                @if (!string.IsNullOrEmpty(CurrentRelationCode))
+                {
+                    <span class="sa-context-chip">ریلیشن: <b>@CurrentRelationCode</b></span>
+                }
+                @if (!string.IsNullOrEmpty(CurrentInquiryCode))
+                {
+                    <span class="sa-context-chip">اینکویری: <b>@CurrentInquiryCode</b></span>
+                }
+                @if (!string.IsNullOrEmpty(CurrentSoftwareCode))
+                {
+                    <span class="sa-context-chip">سافتور: <b>@CurrentSoftwareCode</b></span>
+                }
+            </div>
+        }
     </div>
+
+    <!-- بنر ویژه: اسکنر تنظیم نیست -->
+    @if (scannerNotConfigured)
+    {
+        <div class="sa-scanner-missing">
+            <span class="sa-icon"><i class="bi bi-exclamation-triangle-fill"></i></span>
+            <div class="sa-text">
+                <b>اسکنر تنظیم نیست</b>
+                <span>روی دستگاه انتخاب‌شده اسکنری متصل/پیکربندی نشده است. از برنامه Agent، «تنظیمات اسکنر» را باز کرده و یک اسکنر انتخاب کنید.</span>
+            </div>
+        </div>
+    }
 
     <!-- پیام‌ها -->
     @if (!string.IsNullOrEmpty(message))
     {
-        <div class="alert alert-@messageType alert-dismissible fade show" role="alert">
-            <i class="bi bi-@(AlertIcon)"></i> @message
-            <button type="button" class="btn-close" @onclick="() => message = null"></button>
+        <div class="sa-alert sa-alert-@messageType" role="alert">
+            <i class="bi bi-@(AlertIcon)"></i>
+            <span>@message</span>
+            <button type="button" class="sa-alert-close" @onclick="() => message = null">
+                <i class="bi bi-x-lg"></i>
+            </button>
         </div>
     }
 
     <!-- گالری + گروه‌ها -->
-    <div class="card shadow-sm mb-3">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <span><i class="bi bi-images"></i> گالری اسکن‌ها</span>
-            <span class="badge bg-light text-dark">@galleryTotal تصویر</span>
+    <div class="sa-card">
+        <div class="sa-card-header">
+            <span class="sa-card-title"><i class="bi bi-images"></i> گالری اسکن‌ها</span>
+            <span class="sa-count-badge">@galleryTotal تصویر</span>
         </div>
-        <div class="card-body">
+        <div class="sa-card-body">
             <!-- نوار گروه‌ها -->
-            <div class="d-flex align-items-center gap-2 flex-wrap mb-3">
-                <span class="group-chip @(activeGroupId == null ? "active" : "")" @onclick="() => SelectGroup(null)">
+            <div class="sa-group-bar">
+                <span class="sa-group-chip @(activeGroupId == null ? "active" : "")" @onclick="() => SelectGroup(null)">
                     <i class="bi bi-grid"></i> همه
                 </span>
                 @if (groups != null)
@@ -135,58 +157,58 @@
                     @foreach (DataRow g in groups.Rows)
                     {
                         var gid = GuidVal(g, "Id");
-                        <span class="group-chip @(activeGroupId == gid ? "active" : "")" @onclick="() => SelectGroup(gid)">
+                        <span class="sa-group-chip @(activeGroupId == gid ? "active" : "")" @onclick="() => SelectGroup(gid)">
                             <i class="bi bi-folder2"></i> @Str(g, "Name")
                         </span>
                     }
                 }
-                <button class="btn btn-sm btn-outline-primary" @onclick="CreateGroup">
+                <span class="sa-group-chip add" @onclick="CreateGroup">
                     <i class="bi bi-plus-lg"></i> گروه
-                </button>
+                </span>
             </div>
 
             @if (galleryLoading && (gallery == null || gallery.Rows.Count == 0))
             {
-                <div class="text-center py-5">
+                <div class="sa-empty">
                     <div class="spinner-border text-primary"></div>
-                    <p class="mt-2 text-muted small">در حال بارگذاری...</p>
+                    <p>در حال بارگذاری...</p>
                 </div>
             }
             else if (gallery == null || gallery.Rows.Count == 0)
             {
-                <div class="text-center py-5">
-                    <i class="bi bi-inbox display-1 text-muted"></i>
-                    <p class="mt-3 text-muted">هنوز تصویری ثبت نشده است.</p>
+                <div class="sa-empty">
+                    <i class="bi bi-inbox"></i>
+                    <p>هنوز تصویری ثبت نشده است.</p>
                 </div>
             }
             else
             {
-                <div class="gallery-grid">
+                <div class="sa-gallery-grid">
                     @foreach (DataRow row in gallery.Rows)
                     {
                         var imgId = GuidVal(row, "Id");
                         var selected = selectedImages.Contains(imgId);
-                        <div class="gallery-tile@(selected ? " selected" : "")" @onclick="() => OpenImage(imgId)">
-                            <input type="checkbox" class="tile-check" checked="@selected"
+                        <div class="sa-tile@(selected ? " selected" : "")" @onclick="() => OpenImage(imgId)">
+                            <input type="checkbox" class="sa-tile-check" checked="@selected"
                                    @onclick:stopPropagation="true" @onclick="() => ToggleSelect(imgId)" />
-                            <span class="tile-badge">@(string.IsNullOrEmpty(Str(row, "Groups")) ? "—" : Str(row, "Groups"))</span>
+                            <span class="sa-tile-badge">@(string.IsNullOrEmpty(Str(row, "Groups")) ? "—" : Str(row, "Groups"))</span>
                             <img src="@GetThumbnailSrc(imgId)" loading="lazy" alt="@Str(row, "FileName")"
                                  onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjFmM2Y1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM2Yjc1N2QiPuaYpeeahOGJtOacjeWLmzwvdGV4dD48L3N2Zz4='" />
-                            <div class="tile-info">
+                            <div class="sa-tile-info">
                                 @Str(row, "AgentMachineName") • @FormatDate(row, "CreatedAt")
                             </div>
                         </div>
                     }
                 </div>
 
-                <div class="text-center mt-3">
+                <div class="sa-load-more-wrap">
                     @if (galleryLoading)
                     {
                         <div class="spinner-border text-primary"></div>
                     }
                     else if (gallery.Rows.Count < galleryTotal)
                     {
-                        <button class="btn btn-outline-primary btn-sm" @onclick="LoadMoreGallery">
+                        <button class="sa-btn sa-btn-ghost" @onclick="LoadMoreGallery">
                             <i class="bi bi-arrow-down-circle"></i> بارگذاری بیشتر (@(galleryTotal - gallery.Rows.Count))
                         </button>
                     }
@@ -195,7 +217,7 @@
 
             @if (selectedImages.Count > 0)
             {
-                <div class="d-flex align-items-center gap-2 mt-3 p-2 bg-light rounded">
+                <div class="sa-selection-bar">
                     <span class="small text-muted">@selectedImages.Count انتخاب شده:</span>
                     <select class="form-select form-select-sm" style="width:auto" @onchange="AssignSelectedToGroup">
                         <option value="">افزودن به گروه...</option>
@@ -207,10 +229,10 @@
                             }
                         }
                     </select>
-                    <button class="btn btn-outline-danger btn-sm" @onclick="DeleteSelectedImages">
+                    <button class="sa-btn sa-btn-ghost text-danger" @onclick="DeleteSelectedImages">
                         <i class="bi bi-trash"></i> حذف
                     </button>
-                    <button class="btn btn-outline-secondary btn-sm" @onclick="() => selectedImages.Clear()">
+                    <button class="sa-btn sa-btn-ghost" @onclick="() => selectedImages.Clear()">
                         لغو
                     </button>
                 </div>
@@ -225,28 +247,28 @@
 <!-- مودال پیش‌نمایش / ویرایش تصویر -->
 @if (modalImageId.HasValue)
 {
-    <div class="gallery-fullscreen" tabindex="0" @onkeydown="HandleModalKey">
-        <aside class="fs-action-panel" dir="rtl" aria-label="عملیات تصویر">
-            <button type="button" class="fs-close-button" title="بستن" @onclick="CloseModal">
+    <div class="sa-fullscreen" tabindex="0" @onkeydown="HandleModalKey">
+        <aside class="sa-action-panel" dir="rtl" aria-label="عملیات تصویر">
+            <button type="button" class="sa-close-button" title="بستن" @onclick="CloseModal">
                 <i class="bi bi-x-lg"></i>
             </button>
 
-            <div class="fs-actions-title">عملیات تصویر</div>
+            <div class="sa-actions-title">عملیات تصویر</div>
 
-            <button type="button" class="fs-action" @onclick="() => RotateImage(90)">
-                <span class="fs-action-icon"><i class="bi bi-arrow-clockwise"></i></span>
+            <button type="button" class="sa-action" @onclick="() => RotateImage(90)">
+                <span class="sa-action-icon"><i class="bi bi-arrow-clockwise"></i></span>
                 <span>چرخش</span>
             </button>
 
-            <label class="fs-action fs-upload mb-0">
-                <span class="fs-action-icon"><i class="bi bi-upload"></i></span>
+            <label class="sa-action mb-0">
+                <span class="sa-action-icon"><i class="bi bi-upload"></i></span>
                 <span>جایگزینی</span>
                 <InputFile OnChange="ReplaceImage" style="display:none" accept="image/*" />
             </label>
 
-            <div class="fs-group-field">
+            <div class="sa-group-field">
                 <i class="bi bi-folder2-open"></i>
-                <select class="form-select form-select-sm fs-group-select" @onchange="AssignModalToGroup" aria-label="انتخاب گروه">
+                <select class="form-select form-select-sm sa-group-select" @onchange="AssignModalToGroup" aria-label="انتخاب گروه">
                     <option value="">انتخاب گروه...</option>
                     @if (groups != null)
                     {
@@ -260,19 +282,19 @@
 
             @if (activeGroupId.HasValue)
             {
-                <button type="button" class="fs-action warning" @onclick="RemoveFromCurrentGroup">
-                    <span class="fs-action-icon"><i class="bi bi-folder-x"></i></span>
+                <button type="button" class="sa-action warning" @onclick="RemoveFromCurrentGroup">
+                    <span class="sa-action-icon"><i class="bi bi-folder-x"></i></span>
                     <span>حذف از گروه</span>
                 </button>
             }
 
-            <button type="button" class="fs-action" @onclick="DownloadCurrent">
-                <span class="fs-action-icon"><i class="bi bi-download"></i></span>
+            <button type="button" class="sa-action" @onclick="DownloadCurrent">
+                <span class="sa-action-icon"><i class="bi bi-download"></i></span>
                 <span>دانلود</span>
             </button>
 
-            <button type="button" class="fs-action danger" @onclick="DeleteCurrentImage">
-                <span class="fs-action-icon"><i class="bi bi-trash"></i></span>
+            <button type="button" class="sa-action danger" @onclick="DeleteCurrentImage">
+                <span class="sa-action-icon"><i class="bi bi-trash"></i></span>
                 <span>حذف</span>
             </button>
         </aside>
@@ -286,7 +308,7 @@
         }
         @if (!string.IsNullOrEmpty(modalImageSrc))
         {
-            <img class="fs-preview-image" src="@modalImageSrc" alt="پیش‌نمایش" style="@(modalBusy ? "opacity:0.3" : "")" />
+            <img class="sa-preview-image" src="@modalImageSrc" alt="پیش‌نمایش" style="@(modalBusy ? "opacity:0.3" : "")" />
         }
     </div>
 }
@@ -311,6 +333,7 @@
     private bool isScanning = false;
     private bool initialized = false;
     private string scanContextKey = string.Empty;
+    private bool scannerNotConfigured = false;
 
     // Gallery
     private DataTable? gallery;
@@ -351,6 +374,7 @@
     {
         "success" => "check-circle",
         "danger" => "exclamation-triangle",
+        "warning" => "exclamation-circle",
         _ => "info-circle"
     };
 
@@ -418,6 +442,7 @@
         hub.On<Guid>("ScanCompleted", async (id) => await InvokeAsync(() =>
         {
             isScanning = false;
+            scannerNotConfigured = false;
             ShowMessage("اسکن با موفقیت انجام شد.", "success");
             StateHasChanged();
         }));
@@ -427,7 +452,22 @@
             if (status == ScanStatus.Error)
             {
                 isScanning = false;
-                ShowMessage("اسکن با خطا مواجه شد.", "danger");
+            }
+            StateHasChanged();
+        }));
+
+        hub.On<Guid, string>("ScanError", async (id, errorMessage) => await InvokeAsync(() =>
+        {
+            isScanning = false;
+            if (IsScannerMissingError(errorMessage))
+            {
+                scannerNotConfigured = true;
+                ShowMessage("اسکنر تنظیم نیست.", "danger");
+            }
+            else
+            {
+                scannerNotConfigured = false;
+                ShowMessage($"اسکن با خطا مواجه شد: {errorMessage}", "danger");
             }
             StateHasChanged();
         }));
@@ -445,6 +485,11 @@
             ShowMessage($"خطا در اتصال به سرور: {ex.Message}", "danger");
         }
     }
+
+    private static bool IsScannerMissingError(string? errorMessage)
+        => !string.IsNullOrWhiteSpace(errorMessage) &&
+           errorMessage.Contains("اسکنر تنظیم نیست", StringComparison.Ordinal);
+
 
     // ───────────────────────── Settings / LocalStorage ─────────────────────────
 
@@ -480,6 +525,7 @@
 
     private async Task OnMachineChanged()
     {
+        scannerNotConfigured = false;
         await SaveMachineSetting();
     }
 
@@ -615,6 +661,7 @@
         if (hub == null || !CanScan) return;
 
         isScanning = true;
+        scannerNotConfigured = false;
         ShowMessage("درخواست اسکن ارسال شد...", "info");
         try
         {

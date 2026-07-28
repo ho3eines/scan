@@ -208,14 +208,26 @@ public partial class MainWindow : Window
             Log("پردازش شروع شد...");
 
             int maxPages = job.MultiPage ? Math.Max(1, _settings.MaxPages) : 1;
-            using var session = _wia.CreateSession(_machineName, maxPages);
+            using var session = _wia.CreateSession(
+                _machineName,
+                maxPages,
+                allowBlankPlaceholder: _settings.UsePlaceholderWhenNoScanner,
+                preferredDeviceId: _settings.SelectedScannerId);
 
             int pageNumber = 0;
+            int skippedBlank = 0;
             byte[]? data;
 
             // حلقه اسکن چندصفحه‌ای تا پایان Feeder — هر صفحه به‌محض اسکن ارسال می‌شود (Streaming).
             while ((data = session.NextPage()) is not null)
             {
+                if (_settings.SkipBlankPages && WiaScannerService.IsBlankPage(data))
+                {
+                    skippedBlank++;
+                    await Dispatcher.InvokeAsync(() => Log($"صفحه سفید/خالی شناسایی شد و ارسال نشد (مجموع نادیده‌گرفته‌شده: {skippedBlank})."));
+                    continue;
+                }
+
                 pageNumber++;
                 var fileName = $"scan_{DateTime.Now:yyyyMMdd_HHmmss}_p{pageNumber}.jpg";
                 int size = data.Length;
@@ -229,16 +241,28 @@ public partial class MainWindow : Window
                 });
             }
 
+            // اسکنری یافت نشد و اجازه تصویر آزمایشی هم داده نشده → به سرور اعلام می‌کنیم «اسکنر تنظیم نیست».
+            if (session.ScannerMissing)
+            {
+                await _connection.InvokeAsync("ReportError", job.RequestId, "اسکنر تنظیم نیست.");
+                Log("خطا: اسکنر تنظیم نیست (هیچ دستگاهی یافت نشد و تصویر آزمایشی غیرفعال است).");
+                return;
+            }
+
             if (pageNumber == 0)
             {
-                await _connection.InvokeAsync("ReportError", job.RequestId, "هیچ صفحه‌ای اسکن نشد.");
-                Log("خطا: هیچ صفحه‌ای اسکن نشد.");
+                var reason = skippedBlank > 0
+                    ? "تمام صفحات اسکن‌شده سفید/خالی بودند و ارسال نشدند."
+                    : "هیچ صفحه‌ای اسکن نشد.";
+                await _connection.InvokeAsync("ReportError", job.RequestId, reason);
+                Log($"خطا: {reason}");
                 return;
             }
 
             // اعلام پایان موفق → وضعیت درخواست Done می‌شود.
             await _connection.InvokeAsync("CompleteScan", job.RequestId);
-            await Dispatcher.InvokeAsync(() => Log($"اسکن کامل شد: {pageNumber} صفحه ارسال شد."));
+            await Dispatcher.InvokeAsync(() => Log($"اسکن کامل شد: {pageNumber} صفحه ارسال شد" +
+                (skippedBlank > 0 ? $" ({skippedBlank} صفحه سفید نادیده گرفته شد)." : ".")));
         }
         catch (Exception ex)
         {
@@ -257,6 +281,7 @@ public partial class MainWindow : Window
             });
         }
     }
+
 
     /// <summary>اسکن دستی: درخواست از سرور (مسیر استاندارد UI → Hub → Agent).</summary>
     private async void BtnScan_Click(object sender, RoutedEventArgs e)
@@ -300,6 +325,12 @@ public partial class MainWindow : Window
             menu.Items.Add("نمایش پنجره", null, (_, _) => ShowWindow());
 
             menu.Items.Add("اسکن دستی", null, (_, _) => _ = RequestManualScanAsync());
+
+            menu.Items.Add("تنظیمات اسکنر", null, (_, _) => Dispatcher.Invoke(() =>
+            {
+                ShowWindow();
+                BtnScannerSettings_Click(this, new RoutedEventArgs());
+            }));
 
             var autoStartItem = new System.Windows.Forms.ToolStripMenuItem("شروع خودکار با ویندوز")
             {
@@ -402,11 +433,32 @@ public partial class MainWindow : Window
     private void DetectAndShowScanner()
     {
         bool hasScanner = false;
-        try { hasScanner = _wia.DetectScanner(); } catch { }
-        txtScanner.Text = hasScanner
-            ? "اسکنر WIA شناسایی شد ✓"
-            : "اسکنر WIA یافت نشد — حالت شبیه‌سازی فعال است.";
+        try { hasScanner = _wia.DetectScanner(_settings.SelectedScannerId); } catch { }
+
+        if (hasScanner)
+        {
+            txtScanner.Text = "اسکنر شناسایی شد ✓";
+        }
+        else if (_settings.UsePlaceholderWhenNoScanner)
+        {
+            txtScanner.Text = "اسکنر یافت نشد — حالت تصویر آزمایشی فعال است.";
+        }
+        else
+        {
+            txtScanner.Text = "اسکنر تنظیم نیست — از «تنظیمات اسکنر» یک دستگاه انتخاب کنید.";
+        }
     }
+
+    private void BtnScannerSettings_Click(object sender, RoutedEventArgs e)
+    {
+        var win = new ScannerSettingsWindow(_wia, _settings) { Owner = this };
+        if (win.ShowDialog() == true && win.SettingsChanged)
+        {
+            Log("تنظیمات اسکنر ذخیره شد.");
+            DetectAndShowScanner();
+        }
+    }
+
 
     private void UpdateStatus(bool connected)
     {

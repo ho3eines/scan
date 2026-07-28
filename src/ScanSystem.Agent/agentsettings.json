@@ -4,5 +4,8 @@
   "AutoConnect": true,
   "StartMinimized": true,
   "AutoStart": true,
-  "MaxPages": 50
+  "MaxPages": 50,
+  "SelectedScannerId": "",
+  "UsePlaceholderWhenNoScanner": false,
+  "SkipBlankPages": false
 }
