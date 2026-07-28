@@ -4,6 +4,15 @@
 هر ایستگاه کاری یک Agent سبک اجرا می‌کند که با نام ماشین (Machine Name) شناسایی می‌شود،
 درخواست‌های اسکن را لحظه‌ای دریافت کرده و صفحات را به‌محض اسکن به سرور Stream می‌کند.
 
+صفحه اسکن می‌تواند از طریق Query String سه کد زمینه‌ای دریافت کند:
+`relationCode`، `inquiryCode` و `softwareCode`. این کدها همراه درخواست اسکن ثبت می‌شوند،
+هنگام Insert تصویر به رکورد `Images` منتقل می‌شوند، و در زمان لود گالری همان صفحه به‌عنوان فیلتر در نظر گرفته می‌شوند.
+نمونه:
+
+```text
+/scan?relationCode=REL-100&inquiryCode=INQ-200&softwareCode=SW-300
+```
+
 > **طراحی داده لیست‌ها (طبق سفارش):** کوئری‌های لیست‌های جدولی (درخواست‌های اسکن و Agentها)
 > با Dapper به‌صورت `System.Data.DataTable`/`DataRow` خوانده می‌شوند (`ExecuteReader` + `DataTable.Load`)
 > و جدول‌ها در Blazor با پیمایش `DataRow`ها ساخته می‌شوند.
@@ -51,6 +60,8 @@ sqlcmd -S . -E -i database\01_CreateDatabase.sql
 یا اسکریپت `database/01_CreateDatabase.sql` را در SSMS اجرا کنید.
 اسکریپت Idempotent است و دیتابیس **PddDocuments** را با ۵ جدول می‌سازد:
 `Agents`, `ScanRequests`, `Images`, `ImageGroups`, `ImageGroupItems`.
+در جدول‌های `ScanRequests` و `Images` سه ستون زمینه‌ای `RelationCode`، `InquiryCode` و `SoftwareCode`
+به‌صورت nullable وجود دارد. اگر دیتابیس از قبل ساخته شده باشد، همین اسکریپت ستون‌های جدید و ایندکس‌های لازم را با `ALTER TABLE`/`sys.indexes` اضافه می‌کند.
 
 ## ۲) تنظیم Connection String
 
@@ -76,11 +87,13 @@ dotnet run
 | مسیر | کاربرد |
 |---|---|
 | `/` | داشبورد |
-| `/scan` | شروع اسکن + آخرین درخواست‌ها (DataTable/DataRow) |
+| `/scan` | شروع اسکن + گالری اسکن‌ها؛ پشتیبانی از `relationCode`، `inquiryCode` و `softwareCode` در Query String |
 | `/requests` | لیست درخواست‌ها — جدول Server-side با Paging/Sorting/Filtering در T-SQL (خروجی `System.Data.DataTable`) |
 | `/gallery` | گالری Lazy Load، انتخاب چندگانه، ZIP، چرخش/جایگزینی/حذف، گروه‌بندی Drag & Drop |
 | `/agents` | مدیریت Agentها (آنلاین/آفلاین + دانلود + غیرفعال‌سازی) |
 | `/setup-guide` | راهنمای نصب Agent |
+
+> در صفحه `/scan` لیست درخواست‌های اسکن به کاربر نمایش داده نمی‌شود؛ وضعیت داخلی همچنان از طریق SignalR و دیتابیس مدیریت می‌شود.
 
 ## ۴) اجرای Agent (کلاینت)
 
@@ -130,7 +143,7 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 
 | متد | مسیر | توضیح |
 |---|---|---|
-| GET | `/api/images?skip=0&take=20&groupId=&machineName=` | گالری (Lazy Load — OFFSET/FETCH) |
+| GET | `/api/images?skip=0&take=20&groupId=&machineName=&relationCode=&inquiryCode=&softwareCode=` | گالری (Lazy Load — OFFSET/FETCH) با امکان فیلتر بر اساس کدهای زمینه‌ای |
 | GET | `/api/images/{id}` | تصویر اصلی |
 | GET | `/api/images/thumb/{id}` | Thumbnail |
 | POST | `/api/images/{id}/rotate` | چرخش ۹۰/۱۸۰/۲۷۰ — body: `{"angle":90}` |
@@ -146,7 +159,8 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 | جهت | متد | آرگومان‌ها |
 |---|---|---|
 | Client→Server | `RegisterAgent` | `machineName` |
-| Client→Server | `RequestScan` | `machineName, isMultiPage` |
+| Client→Server | `RequestScan` | `machineName, isMultiPage` (برای سازگاری با Agent/کلاینت قدیمی؛ بدون کد زمینه‌ای) |
+| Client→Server | `RequestScanWithContext` | `machineName, isMultiPage, relationCode, inquiryCode, softwareCode` |
 | Client→Server | `StartProcessing` / `CompleteScan` / `ReportError` | `requestId[, message]` |
 | Client→Server | `UploadPage` | `requestId, fileName, contentType, data, pageNumber` |
 | Server→All | `AgentStatusChanged`, `AgentsChanged`, `RequestsChanged`, `GalleryChanged` | — |
@@ -157,6 +171,7 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 
 - **بدون EF Core** — همه دسترسی‌ها با Dapper و کوئری‌های Parametrized.
 - تصاویر به‌صورت `VARBINARY(MAX)` + Thumbnail خودکار (JPEG 240×320) ذخیره می‌شوند.
+- کدهای `RelationCode`، `InquiryCode` و `SoftwareCode` ابتدا روی `ScanRequests` ذخیره می‌شوند و هنگام `UploadPage`/Insert تصویر در `Images` نیز ثبت می‌شوند؛ لود گالری می‌تواند دقیقاً بر اساس همین کدها فیلتر شود.
 - `ConnectionId`های SignalR در حافظه (`AgentConnectionRegistry`) نگه‌داری می‌شوند؛ قطع Agent → `IsOnline=false` خودکار.
 - حداکثر حجم آپلود: 100MB (Kestrel + FormOptions) — قابل تغییر در `Program.cs`.
 

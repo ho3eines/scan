@@ -61,7 +61,7 @@ public class ScanDataAccess
 
     // ───────────────────────── ScanRequests ─────────────────────────
 
-    public async Task<Guid> CreateRequestAsync(Guid agentId, bool isMultiPage)
+    public async Task<Guid> CreateRequestAsync(Guid agentId, bool isMultiPage, string? relationCode, string? inquiryCode, string? softwareCode)
     {
         var id = Guid.NewGuid();
         await ExecuteAsync(ScanSql.RequestsCreate, new
@@ -69,7 +69,10 @@ public class ScanDataAccess
             Id = id,
             AgentId = agentId,
             Status = ScanStatus.Pending,
-            IsMultiPage = isMultiPage
+            IsMultiPage = isMultiPage,
+            RelationCode = NormalizeCode(relationCode),
+            InquiryCode = NormalizeCode(inquiryCode),
+            SoftwareCode = NormalizeCode(softwareCode)
         });
         return id;
     }
@@ -120,7 +123,14 @@ public class ScanDataAccess
 
     // ───────────────────────── Gallery ─────────────────────────
 
-    public async Task<(DataTable data, int total)> GetGalleryAsync(int skip, int take, Guid? groupId, string? machineName)
+    public async Task<(DataTable data, int total)> GetGalleryAsync(
+        int skip,
+        int take,
+        Guid? groupId,
+        string? machineName,
+        string? relationCode,
+        string? inquiryCode,
+        string? softwareCode)
     {
         var whereParts = new List<string>();
         var p = new DynamicParameters();
@@ -137,6 +147,9 @@ public class ScanDataAccess
             whereParts.Add("a.MachineName = @MachineName");
             p.Add("@MachineName", machineName.Trim());
         }
+        AddCodeFilter(whereParts, p, "RelationCode", relationCode);
+        AddCodeFilter(whereParts, p, "InquiryCode", inquiryCode);
+        AddCodeFilter(whereParts, p, "SoftwareCode", softwareCode);
 
         var where = whereParts.Count > 0 ? "WHERE " + string.Join(" AND ", whereParts) : "";
 
@@ -184,6 +197,18 @@ public class ScanDataAccess
         => await ExecuteAsync(ScanSql.GroupItemsRemove, new { ImageId = imageId, GroupId = groupId });
 
     // ───────────────────────── Helpers ─────────────────────────
+
+    private static string? NormalizeCode(string? code)
+        => string.IsNullOrWhiteSpace(code) ? null : code.Trim();
+
+    private static void AddCodeFilter(List<string> whereParts, DynamicParameters parameters, string columnName, string? value)
+    {
+        var normalized = NormalizeCode(value);
+        if (normalized is null) return;
+
+        whereParts.Add($"i.{columnName} = @{columnName}");
+        parameters.Add($"@{columnName}", normalized);
+    }
 
     private async Task<DataTable> QueryDataTableAsync(string sql, object? param = null)
     {

@@ -87,6 +87,25 @@
                     <i class="bi bi-arrow-clockwise"></i>
                 </button>
             </div>
+
+            @if (HasScanContext)
+            {
+                <div class="scan-context-strip mt-2">
+                    <span class="scan-context-title"><i class="bi bi-link-45deg"></i> زمینه اسکن</span>
+                    @if (!string.IsNullOrEmpty(CurrentRelationCode))
+                    {
+                        <span class="scan-context-chip">ریلیشن: <b>@CurrentRelationCode</b></span>
+                    }
+                    @if (!string.IsNullOrEmpty(CurrentInquiryCode))
+                    {
+                        <span class="scan-context-chip">اینکویری: <b>@CurrentInquiryCode</b></span>
+                    }
+                    @if (!string.IsNullOrEmpty(CurrentSoftwareCode))
+                    {
+                        <span class="scan-context-chip">سافتور: <b>@CurrentSoftwareCode</b></span>
+                    }
+                </div>
+            }
         </div>
     </div>
 
@@ -199,78 +218,36 @@
         </div>
     </div>
 
-    <!-- تاریخچه درخواست‌ها -->
-    <div class="card shadow-sm mb-3">
-        <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
-            <span><i class="bi bi-list-ul"></i> آخرین درخواست‌ها</span>
-            <span class="badge bg-light text-dark">@(requests?.Rows.Count ?? 0)</span>
-        </div>
-        <div class="card-body p-0">
-            @if (requests != null && requests.Rows.Count > 0)
-            {
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped align-middle mb-0">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>دستگاه</th>
-                                <th>نوع</th>
-                                <th>وضعیت</th>
-                                <th>صفحات</th>
-                                <th>تاریخ</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (DataRow row in requests.Rows)
-                            {
-                                var status = Str(row, "Status");
-                                <tr class="@GetRowClass(status)">
-                                    <td>@Str(row, "MachineName")</td>
-                                    <td>
-                                        @if (Bool(row, "IsMultiPage"))
-                                        {
-                                            <span class="badge bg-info text-dark">چندصفحه‌ای</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="badge bg-light text-dark border">تک‌صفحه</span>
-                                        }
-                                    </td>
-                                    <td>
-                                        <span class="badge @GetStatusBadge(status)">
-                                            <i class="bi bi-@GetStatusIcon(status)"></i> @GetStatusText(status)
-                                        </span>
-                                    </td>
-                                    <td><span class="badge bg-secondary">@Int(row, "ImageCount")</span></td>
-                                    <td class="small">@FormatDate(row, "CreatedAt")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
-            else
-            {
-                <div class="text-center py-4 text-muted small">هنوز درخواست اسکنی ثبت نشده است.</div>
-            }
-        </div>
-    </div>
+    <!-- لیست درخواست‌ها برای کاربر نمایش داده نمی‌شود. -->
+
 </div>
 
 <!-- مودال پیش‌نمایش / ویرایش تصویر -->
 @if (modalImageId.HasValue)
 {
     <div class="gallery-fullscreen" tabindex="0" @onkeydown="HandleModalKey">
-        <div class="fs-toolbar">
-            <div class="btn-group" role="group">
-                <button class="btn btn-light btn-sm" @onclick="() => RotateImage(90)">
-                    <i class="bi bi-arrow-clockwise"></i> چرخش
-                </button>
-                <label class="btn btn-light btn-sm mb-0">
-                    <i class="bi bi-upload"></i> جایگزینی
-                    <InputFile OnChange="ReplaceImage" style="display:none" accept="image/*" />
-                </label>
-                <select class="form-select form-select-sm border-0" style="width:auto" @onchange="AssignModalToGroup">
-                    <option value="">گروه...</option>
+        <aside class="fs-action-panel" dir="rtl" aria-label="عملیات تصویر">
+            <button type="button" class="fs-close-button" title="بستن" @onclick="CloseModal">
+                <i class="bi bi-x-lg"></i>
+            </button>
+
+            <div class="fs-actions-title">عملیات تصویر</div>
+
+            <button type="button" class="fs-action" @onclick="() => RotateImage(90)">
+                <span class="fs-action-icon"><i class="bi bi-arrow-clockwise"></i></span>
+                <span>چرخش</span>
+            </button>
+
+            <label class="fs-action fs-upload mb-0">
+                <span class="fs-action-icon"><i class="bi bi-upload"></i></span>
+                <span>جایگزینی</span>
+                <InputFile OnChange="ReplaceImage" style="display:none" accept="image/*" />
+            </label>
+
+            <div class="fs-group-field">
+                <i class="bi bi-folder2-open"></i>
+                <select class="form-select form-select-sm fs-group-select" @onchange="AssignModalToGroup" aria-label="انتخاب گروه">
+                    <option value="">انتخاب گروه...</option>
                     @if (groups != null)
                     {
                         @foreach (DataRow g in groups.Rows)
@@ -279,23 +256,26 @@
                         }
                     }
                 </select>
-                @if (activeGroupId.HasValue)
-                {
-                    <button class="btn btn-warning btn-sm" @onclick="RemoveFromCurrentGroup">
-                        <i class="bi bi-folder-x"></i> حذف از گروه
-                    </button>
-                }
-                <button class="btn btn-outline-light btn-sm" @onclick="DownloadCurrent">
-                    <i class="bi bi-download"></i>
-                </button>
-                <button class="btn btn-danger btn-sm" @onclick="DeleteCurrentImage">
-                    <i class="bi bi-trash"></i>
-                </button>
             </div>
-            <button class="btn btn-light btn-sm fs-exit" @onclick="CloseModal">
-                <i class="bi bi-x-lg"></i>
+
+            @if (activeGroupId.HasValue)
+            {
+                <button type="button" class="fs-action warning" @onclick="RemoveFromCurrentGroup">
+                    <span class="fs-action-icon"><i class="bi bi-folder-x"></i></span>
+                    <span>حذف از گروه</span>
+                </button>
+            }
+
+            <button type="button" class="fs-action" @onclick="DownloadCurrent">
+                <span class="fs-action-icon"><i class="bi bi-download"></i></span>
+                <span>دانلود</span>
             </button>
-        </div>
+
+            <button type="button" class="fs-action danger" @onclick="DeleteCurrentImage">
+                <span class="fs-action-icon"><i class="bi bi-trash"></i></span>
+                <span>حذف</span>
+            </button>
+        </aside>
 
         @if (modalBusy)
         {
@@ -304,12 +284,24 @@
                 <p class="mt-2 small">در حال پردازش...</p>
             </div>
         }
-        <img src="@modalImageSrc" alt="پیش‌نمایش" style="@(modalBusy ? "opacity:0.3" : "")" />
+        @if (!string.IsNullOrEmpty(modalImageSrc))
+        {
+            <img class="fs-preview-image" src="@modalImageSrc" alt="پیش‌نمایش" style="@(modalBusy ? "opacity:0.3" : "")" />
+        }
     </div>
 }
 
 @code {
     private HubConnection? hub;
+
+    [SupplyParameterFromQuery(Name = "relationCode")]
+    public string? RelationCode { get; set; }
+
+    [SupplyParameterFromQuery(Name = "inquiryCode")]
+    public string? InquiryCode { get; set; }
+
+    [SupplyParameterFromQuery(Name = "softwareCode")]
+    public string? SoftwareCode { get; set; }
 
     // Settings
     private DataTable? agents;
@@ -317,6 +309,8 @@
     private bool multiPage = true;
     private bool isConnected = false;
     private bool isScanning = false;
+    private bool initialized = false;
+    private string scanContextKey = string.Empty;
 
     // Gallery
     private DataTable? gallery;
@@ -325,6 +319,7 @@
     private int gallerySkip = 0;
     private const int GalleryPageSize = 20;
     private bool galleryLoading = false;
+    private bool galleryReloadPending = false;
     private Guid? activeGroupId = null;
     private HashSet<Guid> selectedImages = new();
     private Dictionary<Guid, string> thumbnailCache = new();
@@ -346,6 +341,12 @@
 
     private bool CanScan => isConnected && !isScanning && !string.IsNullOrEmpty(selectedMachine) && selectedOnline;
 
+    private string? CurrentRelationCode => NormalizeCode(RelationCode);
+    private string? CurrentInquiryCode => NormalizeCode(InquiryCode);
+    private string? CurrentSoftwareCode => NormalizeCode(SoftwareCode);
+    private bool HasScanContext => CurrentRelationCode is not null || CurrentInquiryCode is not null || CurrentSoftwareCode is not null;
+    private string CurrentScanContextKey => string.Join("|", CurrentRelationCode ?? string.Empty, CurrentInquiryCode ?? string.Empty, CurrentSoftwareCode ?? string.Empty);
+
     private string AlertIcon => messageType switch
     {
         "success" => "check-circle",
@@ -355,9 +356,22 @@
 
     protected override async Task OnInitializedAsync()
     {
+        scanContextKey = CurrentScanContextKey;
         await LoadSettings();
         await ConnectHub();
         await RefreshAll();
+        initialized = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!initialized) return;
+
+        var nextKey = CurrentScanContextKey;
+        if (string.Equals(scanContextKey, nextKey, StringComparison.Ordinal)) return;
+
+        scanContextKey = nextKey;
+        await LoadGallery(reset: true);
     }
 
     // ───────────────────────── SignalR ─────────────────────────
@@ -369,11 +383,7 @@
             .WithAutomaticReconnect()
             .Build();
 
-        hub.On("RequestsChanged", async () => await InvokeAsync(async () =>
-        {
-            await LoadRequests();
-            StateHasChanged();
-        }));
+        hub.On("RequestsChanged", async () => await InvokeAsync(StateHasChanged));
 
         hub.On("GalleryChanged", async () => await InvokeAsync(async () =>
         {
@@ -485,7 +495,6 @@
         await LoadAgents();
         await LoadGroups();
         await LoadGallery(reset: true);
-        await LoadRequests();
     }
 
     private async Task LoadAgents()
@@ -528,7 +537,13 @@
 
     private async Task LoadGallery(bool reset)
     {
-        if (galleryLoading) return;
+        if (galleryLoading)
+        {
+            if (reset) galleryReloadPending = true;
+            return;
+        }
+
+        var reloadAgain = false;
         galleryLoading = true;
         try
         {
@@ -539,8 +554,14 @@
                 thumbnailCache.Clear();
             }
 
-            var (dt, total) = await ScanService.GetGalleryPageAsync(gallerySkip, GalleryPageSize, activeGroupId,
-                string.IsNullOrEmpty(selectedMachine) ? null : selectedMachine);
+            var (dt, total) = await ScanService.GetGalleryPageAsync(
+                gallerySkip,
+                GalleryPageSize,
+                activeGroupId,
+                string.IsNullOrEmpty(selectedMachine) ? null : selectedMachine,
+                CurrentRelationCode,
+                CurrentInquiryCode,
+                CurrentSoftwareCode);
 
             if (gallery is null || gallery.Columns.Count == 0)
             {
@@ -564,7 +585,12 @@
         finally
         {
             galleryLoading = false;
+            reloadAgain = galleryReloadPending;
+            galleryReloadPending = false;
         }
+
+        if (reloadAgain)
+            await LoadGallery(reset: true);
     }
 
     private async Task LoadMoreGallery() => await LoadGallery(reset: false);
@@ -592,7 +618,7 @@
         ShowMessage("درخواست اسکن ارسال شد...", "info");
         try
         {
-            await hub.InvokeAsync("RequestScan", selectedMachine, multiPage);
+            await hub.InvokeAsync("RequestScanWithContext", selectedMachine, multiPage, CurrentRelationCode, CurrentInquiryCode, CurrentSoftwareCode);
         }
         catch (Exception ex)
         {
@@ -844,6 +870,9 @@
         message = text;
         messageType = type;
     }
+
+    private static string? NormalizeCode(string? code)
+        => string.IsNullOrWhiteSpace(code) ? null : code.Trim();
 
     private static string Str(DataRow r, string col)
         => r.IsNull(col) ? string.Empty : r[col]?.ToString() ?? string.Empty;
