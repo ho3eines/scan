@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using ScanSystem.Shared;
+using ScanSystem.Shared.Data;
 using ScanSystem.Shared.Entities;
 using ScanSystem.Web.Services;
 

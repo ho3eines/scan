@@ -122,7 +122,13 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             Log($"خطای اتصال: {ex.Message}");
-            MessageBox.Show($"خطا در اتصال:\n{ex.Message}", "خطا",
+
+            System.Windows.MessageBox.Show($"خطا در اتصال:\n{ex.Message}", "خطا",
+                MessageBoxButton.OK, MessageBoxImage.Error);
+
+            UpdateStatus(false);
+
+            System.Windows.MessageBox.Show($"خطا در اتصال:\n{ex.Message}", "خطا",
                 MessageBoxButton.OK, MessageBoxImage.Error);
 
         }

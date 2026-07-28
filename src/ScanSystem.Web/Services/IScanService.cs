@@ -29,13 +29,13 @@ public interface IScanService
     Task<(DataTable data, int total)> GetGalleryPageAsync(int skip, int take, Guid? groupId, string? machineName);
     Task<byte[]?> GetImageDataAsync(Guid id);
     Task<byte[]?> GetImageThumbnailAsync(Guid id);
-    Task<int> DeleteImageAsync(Guid id);
+    Task DeleteImageAsync(Guid id);
     Task UpdateImageAsync(Guid id, byte[] data);
 
     // ── گروه‌ها ──
     Task<DataTable> GetGroupsDataTableAsync();
     Task<Guid> EnsureGroupAsync(string name);
-    Task<int> DeleteGroupAsync(Guid id);
+    Task DeleteGroupAsync(Guid id);
     Task AssignImageToGroupAsync(Guid imageId, string groupName);
     Task RemoveImageFromGroupAsync(Guid imageId, Guid groupId);
 }

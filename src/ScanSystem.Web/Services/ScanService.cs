@@ -121,7 +121,7 @@ public class ScanService : IScanService
 
     public async Task<byte[]?> GetImageDataAsync(Guid id) => await _db.GetImageDataAsync(id);
     public async Task<byte[]?> GetImageThumbnailAsync(Guid id) => await _db.GetImageThumbnailAsync(id);
-    public async Task<int> DeleteImageAsync(Guid id) => await _db.DeleteImageAsync(id);
+    public async Task DeleteImageAsync(Guid id) => await _db.DeleteImageAsync(id);
 
     public async Task UpdateImageAsync(Guid id, byte[] data)
     {
@@ -139,7 +139,7 @@ public class ScanService : IScanService
         return await _db.EnsureGroupAsync(name.Trim());
     }
 
-    public async Task<int> DeleteGroupAsync(Guid id) => await _db.DeleteGroupAsync(id);
+    public async Task DeleteGroupAsync(Guid id) => await _db.DeleteGroupAsync(id);
 
     public async Task AssignImageToGroupAsync(Guid imageId, string groupName)
     {
