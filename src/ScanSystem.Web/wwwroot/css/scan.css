@@ -480,6 +480,318 @@ hr.sa-sep {
     white-space: nowrap;
 }
 
+/* ───────────────────────── گالری ───────────────────────── */
+.sa-gallery {
+    background: #fff;
+    border: 1px solid var(--sa-border);
+    border-radius: var(--sa-radius);
+    box-shadow: var(--sa-shadow);
+    margin-bottom: 20px;
+    overflow: hidden;
+}
+
+.sa-gallery-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    background: linear-gradient(135deg, #0f172a, #1e293b);
+    color: #fff;
+}
+
+.sa-gallery-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    font-size: 0.88rem;
+}
+
+.sa-gallery-title i {
+    font-size: 1.1rem;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.sa-gallery-count {
+    background: rgba(255, 255, 255, 0.14);
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.sa-gallery-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 48px 20px;
+    color: var(--sa-muted);
+}
+
+.sa-gallery-empty {
+    text-align: center;
+    padding: 56px 20px;
+    color: var(--sa-muted);
+}
+
+.sa-gallery-empty i {
+    font-size: 3rem;
+    opacity: 0.35;
+}
+
+.sa-gallery-empty p {
+    margin-top: 12px;
+    font-size: 0.88rem;
+}
+
+.sa-gallery-empty small {
+    display: block;
+    margin-top: 4px;
+    opacity: 0.7;
+}
+
+.sa-gallery-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 16px;
+    padding: 18px;
+}
+
+.sa-gallery-item {
+    background: var(--sa-bg-soft);
+    border: 1px solid var(--sa-border);
+    border-radius: var(--sa-radius-sm);
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.sa-gallery-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.sa-gallery-thumb {
+    position: relative;
+    aspect-ratio: 3/4;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.sa-gallery-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.sa-gallery-page {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    background: rgba(15, 23, 42, 0.75);
+    color: #fff;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.sa-gallery-meta {
+    padding: 10px 12px;
+}
+
+.sa-gallery-filename {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #0f172a;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sa-gallery-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.sa-gallery-tag {
+    display: inline-block;
+    background: rgba(37, 99, 235, 0.1);
+    color: var(--sa-primary);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 700;
+}
+
+.sa-gallery-date {
+    display: block;
+    font-size: 0.65rem;
+    color: var(--sa-muted);
+    margin-top: 6px;
+}
+
+.sa-gallery-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 4px;
+    padding: 8px 10px;
+    border-top: 1px solid var(--sa-border);
+    background: #fff;
+}
+
+.sa-gallery-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border: none;
+    border-radius: 6px;
+    background: var(--sa-bg);
+    color: var(--sa-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sa-gallery-btn:hover {
+    background: var(--sa-primary);
+    color: #fff;
+}
+
+.sa-gallery-btn-danger:hover {
+    background: var(--sa-danger);
+}
+
+.sa-gallery-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 14px 18px;
+    border-top: 1px solid var(--sa-border);
+    background: var(--sa-bg-soft);
+}
+
+.sa-gallery-page-info {
+    font-size: 0.8rem;
+    color: var(--sa-muted);
+}
+
+/* Modal for image preview */
+.sa-gallery-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+    padding: 20px;
+    animation: saFadeIn 0.2s ease;
+}
+
+.sa-gallery-modal-content {
+    position: relative;
+    max-width: 90vw;
+    max-height: 90vh;
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+}
+
+.sa-gallery-modal-content img {
+    max-width: 90vw;
+    max-height: 85vh;
+    object-fit: contain;
+}
+
+.sa-gallery-modal-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(15, 23, 42, 0.8);
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+    z-index: 10;
+}
+
+.sa-gallery-modal-close:hover {
+    background: var(--sa-danger);
+}
+
+/* Delete confirmation modal */
+.sa-gallery-modal-confirm {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
+}
+
+.sa-gallery-modal-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: rgba(220, 38, 38, 0.1);
+    color: var(--sa-danger);
+    font-size: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+}
+
+.sa-gallery-modal-confirm h5 {
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 8px;
+}
+
+.sa-gallery-modal-confirm p {
+    color: var(--sa-muted);
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+}
+
+.sa-gallery-modal-filename {
+    font-weight: 600;
+    color: #0f172a;
+    font-size: 0.85rem;
+    direction: ltr;
+}
+
+.sa-gallery-modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.sa-gallery-modal-actions .sa-gallery-btn {
+    padding: 10px 24px;
+    font-size: 0.9rem;
+}
+
 /* ───────────────────────── Keyframes ───────────────────────── */
 @keyframes saSpin { to { transform: rotate(360deg); } }
 @keyframes saFadeIn { from { opacity: 0; } to { opacity: 1; } }
