@@ -40,29 +40,31 @@ public class ScanHub : Hub
     // ───────────────────────── اسکن ─────────────────────────
 
     public async Task<Guid> RequestScan(string machineName, bool isMultiPage)
-        => await RequestScanWithContext(machineName, isMultiPage, null, null, null);
+        => await RequestScanWithContext(machineName, isMultiPage, null, null, null, null);
 
     public async Task<Guid> RequestScanWithContext(
         string machineName,
         bool isMultiPage,
         string? relationCode,
         string? inquiryCode,
-        string? softwareCode)
+        string? softwareCode,
+        string? fullName = null)
     {
         if (string.IsNullOrWhiteSpace(machineName)) return Guid.Empty;
         machineName = machineName.Trim();
 
-        var id = await _service.CreateRequestAsync(machineName, isMultiPage, relationCode, inquiryCode, softwareCode);
+        var id = await _service.CreateRequestAsync(machineName, isMultiPage, relationCode, inquiryCode, softwareCode, fullName);
         if (id == Guid.Empty) return id;
 
         _logger.LogInformation(
-            "Scan requested {Id} for {Machine} (multiPage={Mp}, relation={RelationCode}, inquiry={InquiryCode}, software={SoftwareCode})",
+            "Scan requested {Id} for {Machine} (multiPage={Mp}, relation={RelationCode}, inquiry={InquiryCode}, software={SoftwareCode}, name={FullName})",
             id,
             machineName,
             isMultiPage,
             relationCode,
             inquiryCode,
-            softwareCode);
+            softwareCode,
+            fullName);
 
         var connectionId = _connections.GetConnectionId(machineName);
         if (connectionId is null)

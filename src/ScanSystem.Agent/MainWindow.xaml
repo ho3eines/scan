@@ -76,14 +76,6 @@
             <Setter Property="Foreground" Value="#1D4ED8"/>
         </Style>
 
-        <Style x:Key="PddScanButton" TargetType="Button" BasedOn="{StaticResource PddButtonBase}">
-            <Setter Property="Background" Value="#16A34A"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="FontSize" Value="15"/>
-            <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Height" Value="54"/>
-        </Style>
-
         <!-- ورودی متن مدرن -->
         <Style x:Key="PddTextBox" TargetType="TextBox">
             <Setter Property="Padding" Value="10,8"/>
@@ -131,7 +123,6 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- هدر: لوگو + برند -->
@@ -207,9 +198,5 @@
             </Grid>
         </Border>
 
-        <!-- دکمه اسکن دستی -->
-        <Button Grid.Row="4" x:Name="btnScan" Content="اسکن دستی (تک‌صفحه)"
-                Style="{StaticResource PddScanButton}"
-                Click="BtnScan_Click" IsEnabled="False"/>
     </Grid>
 </Window>

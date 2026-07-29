@@ -6,7 +6,7 @@ namespace ScanSystem.Agent;
 
 /// <summary>
 /// پنجره اصلی Agent (پنجره تشخیص/لاگ). طبق طراحی، UI اصلی در Tray است:
-/// - آیکون Tray با منو (نمایش / اسکن دستی / شروع خودکار / خروج)
+/// - آیکون Tray با منو (نمایش / تنظیمات اسکنر / شروع خودکار / خروج)
 /// - صف داخلی (Channel) برای سریال‌سازی درخواست‌های اسکن
 /// - اسکن چندصفحه‌ای تا پایان Feeder و ارسال هر صفحه به‌محض آماده شدن (Streaming)
 /// </summary>
@@ -196,7 +196,6 @@ public partial class MainWindow : Window
             return;
         }
 
-        await Dispatcher.InvokeAsync(() => btnScan.IsEnabled = false);
         try
         {
             // اعلام شروع پردازش به سرور
@@ -269,39 +268,10 @@ public partial class MainWindow : Window
             }
             catch { }
         }
-        finally
-        {
-            await Dispatcher.InvokeAsync(() =>
-            {
-                btnScan.IsEnabled = _connection?.State == HubConnectionState.Connected;
-            });
-        }
     }
 
 
-    /// <summary>اسکن دستی: درخواست از سرور (مسیر استاندارد UI → Hub → Agent).</summary>
-    private async void BtnScan_Click(object sender, RoutedEventArgs e)
-    {
-        if (_connection?.State != HubConnectionState.Connected)
-        {
-            Log("ابتدا به سرور متصل شوید.");
-            return;
-        }
-        Log("درخواست اسکن دستی ارسال شد...");
-        try
-        {
-            await _connection.InvokeAsync("RequestScan", _machineName, false);
-        }
-        catch (Exception ex)
-        {
-            Log($"خطا در ارسال درخواست: {ex.Message}");
-        }
-    }
 
-    private async Task RequestManualScanAsync()
-    {
-        await Dispatcher.InvokeAsync(() => BtnScan_Click(this, new RoutedEventArgs()));
-    }
 
     // ───────────────────────── Tray Icon ─────────────────────────
 
@@ -324,8 +294,6 @@ public partial class MainWindow : Window
             };
 
             menu.Items.Add("نمایش پنجره", null, (_, _) => ShowWindow());
-
-            menu.Items.Add("اسکن دستی", null, (_, _) => _ = RequestManualScanAsync());
 
             menu.Items.Add("تنظیمات اسکنر", null, (_, _) => Dispatcher.Invoke(() =>
             {
@@ -495,7 +463,6 @@ public partial class MainWindow : Window
             txtStatus.Text = "آنلاین";
             txtStatus.Foreground = onlineBrush;
             statusDot.Fill = onlineBrush;
-            btnScan.IsEnabled = true;
             btnConnect.Content = "قطع اتصال";
         }
         else
@@ -503,7 +470,6 @@ public partial class MainWindow : Window
             txtStatus.Text = "آفلاین";
             txtStatus.Foreground = offlineBrush;
             statusDot.Fill = offlineBrush;
-            btnScan.IsEnabled = false;
             btnConnect.Content = "اتصال";
         }
     }
