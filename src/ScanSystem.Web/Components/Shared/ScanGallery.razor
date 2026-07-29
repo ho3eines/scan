@@ -4,280 +4,554 @@
 @using ScanSystem.Web.Services
 @implements IAsyncDisposable
 @inject IScanService ScanService
+@inject Microsoft.JSInterop.IJSRuntime JS
 
-<div class="sa-gallery">
-    <div class="sa-gallery-header">
-        <span class="sa-gallery-title">
-            <i class="bi bi-images"></i>
-            گالری تصاویر اسکن‌شده
-        </span>
-        <span class="sa-gallery-count">@TotalCount تصویر</span>
+@*
+    گالری اسکن‌ها — نسخه بازگردانده‌شده از طراحی قبلی (PR #5):
+    گروه‌ها، انتخاب چندتایی، «بارگذاری بیشتر» و پنل عملیات تمام‌صفحه
+    (چرخش / گروه / دانلود / حذف).
+*@
+
+<div class="sa-card">
+    <div class="sa-card-header">
+        <span class="sa-card-title"><i class="bi bi-images"></i> گالری اسکن‌ها</span>
+        <span class="sa-count-badge">@galleryTotal تصویر</span>
     </div>
-
-    @if (isLoading)
-    {
-        <div class="sa-gallery-loading">
-            <div class="spinner-border text-primary" role="status"></div>
-            <span>در حال بارگذاری...</span>
-        </div>
-    }
-    else if (images == null || images.Rows.Count == 0)
-    {
-        <div class="sa-gallery-empty">
-            <i class="bi bi-image"></i>
-            <p>هنوز تصویری اسکن نشده است</p>
-            <small>پس از اسکن، تصاویر اینجا نمایش داده می‌شوند</small>
-        </div>
-    }
-    else
-    {
-        <div class="sa-gallery-grid">
-            @foreach (DataRow row in images.Rows)
+    <div class="sa-card-body">
+        <!-- نوار گروه‌ها -->
+        <div class="sa-group-bar">
+            <span class="sa-group-chip @(activeGroupId == null ? "active" : "")" @onclick="() => SelectGroup(null)">
+                <i class="bi bi-grid"></i> همه
+            </span>
+            @if (groups != null)
             {
-                var id = Guid.Parse(Str(row, "Id"));
-                var fileName = Str(row, "FileName");
-                var pageNum = Int(row, "PageNumber");
-                var relationCode = Str(row, "RelationCode");
-                var inquiryCode = Str(row, "InquiryCode");
-                var createdAt = FormatDate(row, "CreatedAt");
-
-                <div class="sa-gallery-item" @key="id">
-                    <div class="sa-gallery-thumb">
-                        <img src="/api/images/@(id)/thumbnail" 
-                             alt="@fileName"
-                             onerror="this.src='/img/placeholder.png'" />
-                        <span class="sa-gallery-page">ص @pageNum</span>
-                    </div>
-                    <div class="sa-gallery-meta">
-                        <span class="sa-gallery-filename" title="@fileName">@fileName</span>
-                        <div class="sa-gallery-info">
-                            @if (!string.IsNullOrEmpty(relationCode))
-                            {
-                                <span class="sa-gallery-tag">@relationCode</span>
-                            }
-                            @if (!string.IsNullOrEmpty(inquiryCode))
-                            {
-                                <span class="sa-gallery-tag">@inquiryCode</span>
-                            }
-                        </div>
-                        <span class="sa-gallery-date">@createdAt</span>
-                    </div>
-                    <div class="sa-gallery-actions">
-                        <button class="sa-gallery-btn" title="مشاهده بزرگ" @onclick="() => ViewImage(id)">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <button class="sa-gallery-btn" title="چرخش ۹۰°" @onclick="() => RotateImage(id, 90)">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                        <button class="sa-gallery-btn sa-gallery-btn-danger" title="حذف" @onclick="() => ConfirmDelete(id, fileName)">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </div>
+                @foreach (DataRow g in groups.Rows)
+                {
+                    var gid = GuidVal(g, "Id");
+                    <span class="sa-group-chip @(activeGroupId == gid ? "active" : "")" @onclick="() => SelectGroup(gid)">
+                        <i class="bi bi-folder2"></i> @Str(g, "Name")
+                    </span>
+                }
             }
+            <span class="sa-group-chip add" @onclick="CreateGroup">
+                <i class="bi bi-plus-lg"></i> گروه
+            </span>
         </div>
 
-        @if (TotalCount > Take)
+        @if (galleryLoading && (gallery == null || gallery.Rows.Count == 0))
         {
-            <div class="sa-gallery-pagination">
-                <button class="sa-gallery-btn" disabled="@(Skip == 0)" @onclick="PrevPage">
-                    <i class="bi bi-chevron-right"></i> قبلی
+            <div class="sa-empty">
+                <div class="spinner-border text-primary"></div>
+                <p>در حال بارگذاری...</p>
+            </div>
+        }
+        else if (gallery == null || gallery.Rows.Count == 0)
+        {
+            <div class="sa-empty">
+                <i class="bi bi-inbox"></i>
+                <p>هنوز تصویری ثبت نشده است.</p>
+            </div>
+        }
+        else
+        {
+            <div class="sa-gallery-grid">
+                @foreach (DataRow row in gallery.Rows)
+                {
+                    var imgId = GuidVal(row, "Id");
+                    var selected = selectedImages.Contains(imgId);
+                    <div class="sa-tile@(selected ? " selected" : "")" @key="imgId" @onclick="() => OpenImage(imgId)">
+                        <input type="checkbox" class="sa-tile-check" checked="@selected"
+                               @onclick:stopPropagation="true" @onclick="() => ToggleSelect(imgId)" />
+                        <span class="sa-tile-badge">@(string.IsNullOrEmpty(Str(row, "Groups")) ? "—" : Str(row, "Groups"))</span>
+                        <img src="@GetThumbnailSrc(imgId)" loading="lazy" alt="@Str(row, "FileName")"
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjFmM2Y1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM2Yjc1N2QiPuaYpeeahOGJtOacjeWLmzwvdGV4dD48L3N2Zz4='" />
+                        <div class="sa-tile-info">
+                            @Str(row, "AgentMachineName") • @FormatDate(row, "CreatedAt")
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <div class="sa-load-more-wrap">
+                @if (galleryLoading)
+                {
+                    <div class="spinner-border text-primary"></div>
+                }
+                else if (gallery.Rows.Count < galleryTotal)
+                {
+                    <button class="sa-btn sa-btn-ghost" @onclick="LoadMoreGallery">
+                        <i class="bi bi-arrow-down-circle"></i> بارگذاری بیشتر (@(galleryTotal - gallery.Rows.Count))
+                    </button>
+                }
+            </div>
+        }
+
+        @if (selectedImages.Count > 0)
+        {
+            <div class="sa-selection-bar">
+                <span class="small text-muted">@selectedImages.Count انتخاب شده:</span>
+                <select class="form-select form-select-sm" style="width:auto" @onchange="AssignSelectedToGroup">
+                    <option value="">افزودن به گروه...</option>
+                    @if (groups != null)
+                    {
+                        @foreach (DataRow g in groups.Rows)
+                        {
+                            <option value="@Str(g, "Name")">@Str(g, "Name")</option>
+                        }
+                    }
+                </select>
+                <button class="sa-btn sa-btn-ghost text-danger" @onclick="DeleteSelectedImages">
+                    <i class="bi bi-trash"></i> حذف
                 </button>
-                <span class="sa-gallery-page-info">
-                    نمایش @(Skip + 1) تا @(Math.Min(Skip + Take, TotalCount)) از @TotalCount
-                </span>
-                <button class="sa-gallery-btn" disabled="@(Skip + Take >= TotalCount)" @onclick="NextPage">
-                    بعدی <i class="bi bi-chevron-left"></i>
+                <button class="sa-btn sa-btn-ghost" @onclick="() => selectedImages.Clear()">
+                    لغو
                 </button>
             </div>
         }
-    }
+    </div>
 </div>
 
-@* Modal for image preview *@
-@if (selectedImageId.HasValue)
+<!-- مودال پیش‌نمایش / ویرایش تصویر -->
+@if (modalImageId.HasValue)
 {
-    <div class="sa-gallery-modal" @onclick="CloseModal">
-        <div class="sa-gallery-modal-content" @onclick:stopPropagation>
-            <button class="sa-gallery-modal-close" @onclick="CloseModal">
+    <div class="sa-fullscreen" tabindex="0" @onkeydown="HandleModalKey">
+        <aside class="sa-action-panel" dir="rtl" aria-label="عملیات تصویر">
+            <button type="button" class="sa-close-button" title="بستن" @onclick="CloseModal">
                 <i class="bi bi-x-lg"></i>
             </button>
-            <img src="/api/images/@(selectedImageId)" alt="تصویر اسکن‌شده" />
-        </div>
-    </div>
-}
 
-@* Delete confirmation modal *@
-@if (deleteConfirmId.HasValue)
-{
-    <div class="sa-gallery-modal" @onclick="CancelDelete">
-        <div class="sa-gallery-modal-confirm" @onclick:stopPropagation>
-            <div class="sa-gallery-modal-icon">
-                <i class="bi bi-exclamation-triangle-fill"></i>
+            <div class="sa-actions-title">عملیات تصویر</div>
+
+            <button type="button" class="sa-action" @onclick="() => RotateImage(90)">
+                <span class="sa-action-icon"><i class="bi bi-arrow-clockwise"></i></span>
+                <span>چرخش</span>
+            </button>
+
+            <div class="sa-group-field">
+                <i class="bi bi-folder2-open"></i>
+                <select class="form-select form-select-sm sa-group-select" @onchange="AssignModalToGroup" aria-label="انتخاب گروه">
+                    <option value="">انتخاب گروه...</option>
+                    @if (groups != null)
+                    {
+                        @foreach (DataRow g in groups.Rows)
+                        {
+                            <option value="@Str(g, "Name")">@Str(g, "Name")</option>
+                        }
+                    }
+                </select>
             </div>
-            <h5>حذف تصویر</h5>
-            <p>آیا از حذف این تصویر مطمئن هستید؟</p>
-            <p class="sa-gallery-modal-filename">@deleteConfirmFileName</p>
-            <div class="sa-gallery-modal-actions">
-                <button class="sa-gallery-btn sa-gallery-btn-danger" @onclick="ExecuteDelete">
-                    <i class="bi bi-trash"></i> حذف
+
+            @if (activeGroupId.HasValue)
+            {
+                <button type="button" class="sa-action warning" @onclick="RemoveFromCurrentGroup">
+                    <span class="sa-action-icon"><i class="bi bi-folder-x"></i></span>
+                    <span>حذف از گروه</span>
                 </button>
-                <button class="sa-gallery-btn" @onclick="CancelDelete">
-                    انصراف
-                </button>
+            }
+
+            <button type="button" class="sa-action" @onclick="DownloadCurrent">
+                <span class="sa-action-icon"><i class="bi bi-download"></i></span>
+                <span>دانلود</span>
+            </button>
+
+            <button type="button" class="sa-action danger" @onclick="DeleteCurrentImage">
+                <span class="sa-action-icon"><i class="bi bi-trash"></i></span>
+                <span>حذف</span>
+            </button>
+        </aside>
+
+        @if (modalBusy)
+        {
+            <div class="text-white text-center">
+                <div class="spinner-border"></div>
+                <p class="mt-2 small">در حال پردازش...</p>
             </div>
-        </div>
+        }
+        @if (!string.IsNullOrEmpty(modalImageSrc))
+        {
+            <img class="sa-preview-image" src="@modalImageSrc" alt="پیش‌نمایش" style="@(modalBusy ? "opacity:0.3" : "")" />
+        }
     </div>
 }
 
 @code {
-    [Parameter]
-    public HubConnection? Hub { get; set; }
+    [Parameter] public HubConnection? Hub { get; set; }
+    [Parameter] public string? MachineName { get; set; }
+    [Parameter] public string? RelationCode { get; set; }
+    [Parameter] public string? InquiryCode { get; set; }
+    [Parameter] public string? SoftwareCode { get; set; }
+    [Parameter] public EventCallback<(string Text, string Type)> OnMessage { get; set; }
 
-    [Parameter]
-    public string? RelationCode { get; set; }
+    // Gallery state
+    private DataTable? gallery;
+    private DataTable? groups;
+    private int galleryTotal = 0;
+    private int gallerySkip = 0;
+    private const int GalleryPageSize = 20;
+    private bool galleryLoading = false;
+    private bool galleryReloadPending = false;
+    private Guid? activeGroupId = null;
+    private HashSet<Guid> selectedImages = new();
+    private Dictionary<Guid, string> thumbnailCache = new();
+    private string contextKey = string.Empty;
 
-    [Parameter]
-    public string? InquiryCode { get; set; }
+    // Modal state
+    private Guid? modalImageId = null;
+    private string modalImageSrc = "";
+    private bool modalBusy = false;
 
-    [Parameter]
-    public string? SoftwareCode { get; set; }
+    // Hub subscriptions
+    private HubConnection? subscribedHub;
+    private IDisposable? galleryChangedSub;
+    private IDisposable? groupsChangedSub;
 
-    private DataTable? images;
-    private int TotalCount { get; set; }
-    private int Skip { get; set; } = 0;
-    private int Take { get; set; } = 12;
-    private bool isLoading = false;
-
-    private Guid? selectedImageId = null;
-    private Guid? deleteConfirmId = null;
-    private string deleteConfirmFileName = "";
+    private string CurrentContextKey => string.Join("|",
+        MachineName ?? string.Empty,
+        RelationCode ?? string.Empty,
+        InquiryCode ?? string.Empty,
+        SoftwareCode ?? string.Empty);
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadGallery();
+        contextKey = CurrentContextKey;
+        await LoadGroups();
+        await LoadGallery(reset: true);
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        Skip = 0; // Reset to first page when filters change
-        await LoadGallery();
+        // اشتراک رویدادهای هاب (یک‌بار برای هر اتصال)
+        if (Hub is not null && !ReferenceEquals(Hub, subscribedHub))
+        {
+            UnsubscribeHub();
+            subscribedHub = Hub;
+
+            galleryChangedSub = Hub.On("GalleryChanged", async () => await InvokeAsync(async () =>
+            {
+                await LoadGallery(reset: true);
+                StateHasChanged();
+            }));
+
+            groupsChangedSub = Hub.On("GroupsChanged", async () => await InvokeAsync(async () =>
+            {
+                await LoadGroups();
+                StateHasChanged();
+            }));
+        }
+
+        // با تغییر فیلترها (دستگاه / کدهای زمینه) گالری از نو بارگذاری می‌شود
+        var nextKey = CurrentContextKey;
+        if (!string.Equals(contextKey, nextKey, StringComparison.Ordinal))
+        {
+            contextKey = nextKey;
+            await LoadGallery(reset: true);
+        }
     }
 
-    public async Task RefreshAsync()
-    {
-        await LoadGallery();
-        await InvokeAsync(StateHasChanged);
-    }
+    // ───────────────────────── Data Loading ─────────────────────────
 
-    private async Task LoadGallery()
+    private async Task LoadGroups()
     {
-        isLoading = true;
         try
         {
-            var (data, total) = await ScanService.GetGalleryPageAsync(
-                Skip, Take, null, null,
-                RelationCode, InquiryCode, SoftwareCode);
-            images = data;
-            TotalCount = total;
+            groups = await ScanService.GetGroupsDataTableAsync();
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error loading gallery: {ex.Message}");
-            images = new DataTable();
-            TotalCount = 0;
+            await Notify($"خطا در بارگذاری گروه‌ها: {ex.Message}", "danger");
+            groups = new DataTable();
+        }
+    }
+
+    private async Task LoadGallery(bool reset)
+    {
+        if (galleryLoading)
+        {
+            if (reset) galleryReloadPending = true;
+            return;
+        }
+
+        var reloadAgain = false;
+        galleryLoading = true;
+        try
+        {
+            if (reset)
+            {
+                gallerySkip = 0;
+                gallery = new DataTable();
+                thumbnailCache.Clear();
+            }
+
+            var (dt, total) = await ScanService.GetGalleryPageAsync(
+                gallerySkip,
+                GalleryPageSize,
+                activeGroupId,
+                string.IsNullOrEmpty(MachineName) ? null : MachineName,
+                RelationCode,
+                InquiryCode,
+                SoftwareCode);
+
+            if (gallery is null || gallery.Columns.Count == 0)
+            {
+                gallery = dt;
+            }
+            else
+            {
+                foreach (DataRow row in dt.Rows)
+                    gallery.ImportRow(row);
+            }
+
+            galleryTotal = total;
+            gallerySkip += dt.Rows.Count;
+
+            if (reset) selectedImages.Clear();
+        }
+        catch (Exception ex)
+        {
+            await Notify($"خطا در بارگذاری گالری: {ex.Message}", "danger");
         }
         finally
         {
-            isLoading = false;
+            galleryLoading = false;
+            reloadAgain = galleryReloadPending;
+            galleryReloadPending = false;
         }
+
+        if (reloadAgain)
+            await LoadGallery(reset: true);
     }
 
-    private async Task PrevPage()
+    private async Task LoadMoreGallery() => await LoadGallery(reset: false);
+
+    // ───────────────────────── Gallery Interactions ─────────────────────────
+
+    private void ToggleSelect(Guid id)
     {
-        if (Skip > 0)
-        {
-            Skip = Math.Max(0, Skip - Take);
-            await LoadGallery();
-        }
+        if (selectedImages.Contains(id)) selectedImages.Remove(id);
+        else selectedImages.Add(id);
     }
 
-    private async Task NextPage()
+    private async Task SelectGroup(Guid? id)
     {
-        if (Skip + Take < TotalCount)
-        {
-            Skip += Take;
-            await LoadGallery();
-        }
+        activeGroupId = id;
+        await LoadGallery(reset: true);
     }
 
-    private void ViewImage(Guid id)
+    private async Task CreateGroup()
     {
-        selectedImageId = id;
-    }
-
-    private void CloseModal()
-    {
-        selectedImageId = null;
-    }
-
-    private void ConfirmDelete(Guid id, string fileName)
-    {
-        deleteConfirmId = id;
-        deleteConfirmFileName = fileName;
-    }
-
-    private void CancelDelete()
-    {
-        deleteConfirmId = null;
-        deleteConfirmFileName = "";
-    }
-
-    private async Task ExecuteDelete()
-    {
-        if (!deleteConfirmId.HasValue || Hub == null) return;
-
+        var name = await JS.InvokeAsync<string?>("prompt", "نام گروه جدید:");
+        if (string.IsNullOrWhiteSpace(name) || Hub == null) return;
         try
         {
-            await Hub.InvokeAsync("DeleteImage", deleteConfirmId.Value);
-            deleteConfirmId = null;
-            deleteConfirmFileName = "";
-            await LoadGallery();
+            await Hub.InvokeAsync("CreateGroup", name.Trim());
+            await LoadGroups();
+            await Notify($"گروه «{name.Trim()}» ساخته شد.", "success");
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error deleting image: {ex.Message}");
+            await Notify($"خطا در ساخت گروه: {ex.Message}", "danger");
         }
     }
 
-    private async Task RotateImage(Guid id, int angle)
+    private async Task AssignSelectedToGroup(ChangeEventArgs e)
     {
-        if (Hub == null) return;
+        var groupName = e.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(groupName) || Hub == null || selectedImages.Count == 0) return;
 
+        foreach (var id in selectedImages.ToList())
+        {
+            try { await Hub.InvokeAsync("AssignImageToGroup", id, groupName.Trim()); }
+            catch { }
+        }
+        selectedImages.Clear();
+        await LoadGallery(reset: true);
+        await Notify($"تصاویر به گروه «{groupName.Trim()}» اضافه شد.", "success");
+    }
+
+    private async Task DeleteSelectedImages()
+    {
+        if (Hub == null || selectedImages.Count == 0) return;
+        var ok = await JS.InvokeAsync<bool>("confirm", $"{selectedImages.Count} تصویر حذف شود؟");
+        if (!ok) return;
+
+        foreach (var id in selectedImages.ToList())
+        {
+            try { await Hub.InvokeAsync("DeleteImage", id); }
+            catch { }
+        }
+        selectedImages.Clear();
+        await LoadGallery(reset: true);
+        await Notify("تصاویر حذف شد.", "warning");
+    }
+
+    // ───────────────────────── Modal ─────────────────────────
+
+    private async Task OpenImage(Guid id)
+    {
+        modalImageId = id;
+        modalBusy = true;
+        modalImageSrc = "";
         try
         {
-            var success = await Hub.InvokeAsync<bool>("RotateImage", id, angle);
-            if (success)
+            var bytes = await ScanService.GetImageDataAsync(id);
+            if (bytes != null)
+                modalImageSrc = $"data:image/jpeg;base64,{Convert.ToBase64String(bytes)}";
+        }
+        catch (Exception ex)
+        {
+            await Notify($"خطا در بارگذاری تصویر: {ex.Message}", "danger");
+        }
+        finally
+        {
+            modalBusy = false;
+        }
+    }
+
+    private void CloseModal() => modalImageId = null;
+
+    private void HandleModalKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape") CloseModal();
+    }
+
+    private async Task RotateImage(int angle)
+    {
+        if (modalImageId == null || Hub == null) return;
+        modalBusy = true;
+        try
+        {
+            var ok = await Hub.InvokeAsync<bool>("RotateImage", modalImageId.Value, angle);
+            if (ok)
             {
-                await LoadGallery();
+                await OpenImage(modalImageId.Value);
+                await Notify("تصویر چرخید.", "success");
+            }
+            else
+            {
+                await Notify("خطا در چرخش تصویر.", "danger");
             }
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Error rotating image: {ex.Message}");
+            await Notify($"خطا: {ex.Message}", "danger");
         }
+        finally
+        {
+            modalBusy = false;
+        }
+    }
+
+    private async Task AssignModalToGroup(ChangeEventArgs e)
+    {
+        var groupName = e.Value?.ToString();
+        if (modalImageId == null || Hub == null || string.IsNullOrWhiteSpace(groupName)) return;
+
+        try
+        {
+            await Hub.InvokeAsync("AssignImageToGroup", modalImageId.Value, groupName.Trim());
+            await LoadGallery(reset: true);
+            await Notify($"تصویر به گروه «{groupName.Trim()}» اضافه شد.", "success");
+        }
+        catch (Exception ex)
+        {
+            await Notify($"خطا: {ex.Message}", "danger");
+        }
+    }
+
+    private async Task RemoveFromCurrentGroup()
+    {
+        if (modalImageId == null || Hub == null || !activeGroupId.HasValue) return;
+
+        try
+        {
+            await Hub.InvokeAsync("RemoveImageFromGroup", modalImageId.Value, activeGroupId.Value);
+            await LoadGallery(reset: true);
+            await Notify("تصویر از گروه حذف شد.", "warning");
+        }
+        catch (Exception ex)
+        {
+            await Notify($"خطا: {ex.Message}", "danger");
+        }
+    }
+
+    private async Task DownloadCurrent()
+    {
+        if (modalImageId == null) return;
+        var shortId = modalImageId.Value.ToString()[..8];
+        await JS.InvokeVoidAsync("eval",
+            $"var a=document.createElement('a');a.href='{modalImageSrc}';a.download='scan_{shortId}.jpg';document.body.appendChild(a);a.click();a.remove();");
+    }
+
+    private async Task DeleteCurrentImage()
+    {
+        if (modalImageId == null || Hub == null) return;
+        var ok = await JS.InvokeAsync<bool>("confirm", "این تصویر حذف شود؟");
+        if (!ok) return;
+
+        try
+        {
+            await Hub.InvokeAsync("DeleteImage", modalImageId.Value);
+            modalImageId = null;
+            await LoadGallery(reset: true);
+            await Notify("تصویر حذف شد.", "warning");
+        }
+        catch (Exception ex)
+        {
+            await Notify($"خطا در حذف: {ex.Message}", "danger");
+        }
+    }
+
+    // ───────────────────────── Helpers ─────────────────────────
+
+    private string GetThumbnailSrc(Guid id)
+    {
+        if (thumbnailCache.TryGetValue(id, out var src)) return src;
+        _ = LoadThumbnailAsync(id);
+        return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+    }
+
+    private async Task LoadThumbnailAsync(Guid id)
+    {
+        try
+        {
+            var bytes = await ScanService.GetImageThumbnailAsync(id);
+            if (bytes is null || bytes.Length == 0)
+                bytes = await ScanService.GetImageDataAsync(id);
+            if (bytes != null)
+            {
+                thumbnailCache[id] = $"data:image/jpeg;base64,{Convert.ToBase64String(bytes)}";
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch { }
+    }
+
+    private async Task Notify(string text, string type)
+    {
+        if (OnMessage.HasDelegate)
+            await OnMessage.InvokeAsync((text, type));
+    }
+
+    private void UnsubscribeHub()
+    {
+        galleryChangedSub?.Dispose();
+        groupsChangedSub?.Dispose();
+        galleryChangedSub = null;
+        groupsChangedSub = null;
     }
 
     private static string Str(DataRow r, string col)
         => r.IsNull(col) ? string.Empty : r[col]?.ToString() ?? string.Empty;
 
-    private static int Int(DataRow r, string col)
-        => r.IsNull(col) ? 0 : Convert.ToInt32(r[col]);
+    private static Guid GuidVal(DataRow r, string col)
+        => r.IsNull(col) ? Guid.Empty : (Guid)r[col];
 
     private static string FormatDate(DataRow r, string col)
         => r.IsNull(col) ? "—" : Convert.ToDateTime(r[col]).ToString("yyyy/MM/dd HH:mm");
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
+        UnsubscribeHub();
+        return ValueTask.CompletedTask;
     }
 }

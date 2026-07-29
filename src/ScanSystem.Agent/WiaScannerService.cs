@@ -214,6 +214,9 @@ public sealed class ScanSession : IDisposable
     /// <summary>true یعنی اسکنر (یا اسکنر انتخاب‌شده) یافت نشد و هیچ تصویر آزمایشی هم تولید نشده است.</summary>
     public bool ScannerMissing { get; private set; }
 
+    /// <summary>true یعنی نشست در حالت تصویر آزمایشی است (هیچ دستگاهی متصل نشده و کاربر تصویر تستی را مجاز کرده).</summary>
+    public bool IsSimulated => _simulate && _device is null;
+
     internal ScanSession(string machineName, int maxPages, bool allowBlankPlaceholder, string? preferredDeviceId)
     {
         _machineName = machineName;
@@ -268,9 +271,11 @@ public sealed class ScanSession : IDisposable
         catch
         {
             _device = null;
-            ScannerMissing = true;
             // فقط وقتی کاربر صراحتاً اجازه داده، به حالت تصویر آزمایشی سوییچ می‌کنیم.
             _simulate = _allowBlankPlaceholder;
+            // «اسکنر گمشده» فقط یعنی نه دستگاهی متصل شد و نه تصویر آزمایشی مجاز است.
+            // در حالت آزمایشی، تصاویر تستی تولید و آپلود می‌شوند و اسکن باید با موفقیت تمام شود.
+            ScannerMissing = !_simulate;
         }
     }
 
@@ -288,7 +293,7 @@ public sealed class ScanSession : IDisposable
         if (bytes is null && _pageCount == 0 && _device is not null)
             bytes = TryDialogScan();
 
-        // هیچ دستگاهی در دسترس نبود، اما تصویر آزمایشی مجاز است → شبیه‌سازی
+        // هیچ دستگاهی در دسترس نبود، اما تصویر آزمایشی مجاز است → یک تصویر تستی (مطابق رفتار قبلی برنامه)
         if (bytes is null && _pageCount == 0 && _simulate)
             bytes = WiaScannerService.SimulateScan(_machineName, 1);
 

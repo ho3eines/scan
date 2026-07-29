@@ -202,11 +202,12 @@
     }
 
     <!-- گالری تصاویر -->
-    <ScanGallery @key="galleryKey" 
-                  Hub="@hub" 
-                  RelationCode="@CurrentRelationCode" 
-                  InquiryCode="@CurrentInquiryCode" 
-                  SoftwareCode="@CurrentSoftwareCode" />
+    <ScanGallery Hub="@hub"
+                 MachineName="@selectedMachine"
+                 RelationCode="@CurrentRelationCode"
+                 InquiryCode="@CurrentInquiryCode"
+                 SoftwareCode="@CurrentSoftwareCode"
+                 OnMessage="@(m => ShowMessage(m.Text, m.Type))" />
 </div>
 
 @code {
@@ -232,7 +233,6 @@
     private bool isScanning = false;
     private bool scannerNotConfigured = false;
     private bool initialized = false;
-    private int galleryKey = 0;
 
     // Messages
     private string? message;
@@ -310,15 +310,10 @@
             isScanning = false;
             scannerNotConfigured = false;
             ShowMessage("اسکن با موفقیت انجام شد.", "success");
-            galleryKey++; // Force gallery refresh
             StateHasChanged();
         }));
 
-        hub.On("GalleryChanged", async () => await InvokeAsync(() =>
-        {
-            galleryKey++; // Force gallery refresh
-            StateHasChanged();
-        }));
+        // «GalleryChanged» و «GroupsChanged» مستقیماً توسط خود کامپوننت ScanGallery مدیریت می‌شوند.
 
         hub.On<Guid, string>("StatusChanged", async (id, status) => await InvokeAsync(() =>
         {

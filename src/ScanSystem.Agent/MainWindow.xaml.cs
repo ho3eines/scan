@@ -209,6 +209,11 @@ public partial class MainWindow : Window
                 allowBlankPlaceholder: _settings.UsePlaceholderWhenNoScanner,
                 preferredDeviceId: _settings.SelectedScannerId);
 
+            if (session.IsSimulated)
+            {
+                Log("حالت تصویر آزمایشی: اسکنر متصل نیست؛ یک تصویر تستی ساخته و به سرور ارسال می‌شود.");
+            }
+
             int pageNumber = 0;
             int skippedBlank = 0;
             byte[]? data;
@@ -216,7 +221,8 @@ public partial class MainWindow : Window
             // حلقه اسکن چندصفحه‌ای تا پایان Feeder — هر صفحه به‌محض اسکن ارسال می‌شود (Streaming).
             while ((data = session.NextPage()) is not null)
             {
-                if (_settings.SkipBlankPages && WiaScannerService.IsBlankPage(data))
+                // تشخیص صفحه خالی فقط برای اسکن واقعی؛ تصویر آزمایشی هرگز نباید نادیده گرفته شود.
+                if (_settings.SkipBlankPages && !session.IsSimulated && WiaScannerService.IsBlankPage(data))
                 {
                     skippedBlank++;
                     await Dispatcher.InvokeAsync(() => Log($"صفحه سفید/خالی شناسایی شد و ارسال نشد (مجموع نادیده‌گرفته‌شده: {skippedBlank})."));
