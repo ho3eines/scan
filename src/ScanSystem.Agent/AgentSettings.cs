@@ -9,6 +9,13 @@ public class AgentSettings
     /// <summary>آدرس Hub سرور.</summary>
     public string ServerUrl { get; set; } = "http://localhost:5002/scanhub";
 
+    /// <summary>
+    /// حداکثر زمان انتظار برای دریافت پیام از سرور (تایم‌اوت SignalR به ثانیه).
+    /// مقدار پیش‌فرض SignalR برابر 30 ثانیه است، اما برای جلوگیری از قطع اتصال در شبکه‌های کند یا عملیات‌های طولانی،
+    /// این مقدار به صورت پیش‌فرض روی 120 ثانیه تنظیم شده است و از طریق تنظیمات قابل تغییر است.
+    /// </summary>
+    public int ServerTimeoutSeconds { get; set; } = 120;
+
     /// <summary>اتصال خودکار به سرور هنگام اجرای برنامه.</summary>
     public bool AutoConnect { get; set; } = true;
 
@@ -56,6 +63,7 @@ public class AgentSettings
                 {
                     if (string.IsNullOrWhiteSpace(s.ServerUrl)) s.ServerUrl = "http://localhost:5002/scanhub";
                     if (s.MaxPages <= 0) s.MaxPages = 50;
+                    if (s.ServerTimeoutSeconds <= 0) s.ServerTimeoutSeconds = 120;
                     return s;
                 }
             }

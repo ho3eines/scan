@@ -25,6 +25,9 @@ builder.Services.AddSignalR(opt =>
 {
     opt.MaximumReceiveMessageSize = 50 * 1024 * 1024;
     opt.StreamBufferCapacity = 20;
+    opt.ClientTimeoutInterval = TimeSpan.FromSeconds(120);
+    opt.KeepAliveInterval = TimeSpan.FromSeconds(15);
+    opt.HandshakeTimeout = TimeSpan.FromSeconds(30);
 });
 
 // ───────────────────────── Blazor Server ─────────────────────────

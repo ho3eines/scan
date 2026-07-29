@@ -1,7 +1,7 @@
 <Window x:Class="ScanSystem.Agent.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="pdd Scan" Height="660" Width="460"
+        Title="pdd Scan" Height="685" Width="460"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanMinimize"
         FlowDirection="RightToLeft"
@@ -151,6 +151,21 @@
                             Style="{StaticResource PddPrimaryButton}"
                             Click="BtnConnect_Click" MinWidth="92" Margin="10,0,0,0"/>
                 </Grid>
+                <Grid Margin="0,10,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="تایم‌اوت سرور (مهلت پاسخ‌دهی):"
+                               Foreground="#64748B" FontSize="11.5" VerticalAlignment="Center"/>
+                    <TextBox Grid.Column="1" x:Name="txtServerTimeout" Text="120"
+                             Style="{StaticResource PddTextBox}" Width="68"
+                             FlowDirection="LeftToRight" TextAlignment="Center"
+                             VerticalAlignment="Center" Margin="10,0,6,0"/>
+                    <TextBlock Grid.Column="2" Text="ثانیه"
+                               Foreground="#64748B" FontSize="11.5" VerticalAlignment="Center"/>
+                </Grid>
             </StackPanel>
         </Border>
 
@@ -173,7 +188,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBlock Grid.Column="0" x:Name="txtScanner" Text="" Foreground="#64748B" FontSize="11.5"
                                VerticalAlignment="Center" TextWrapping="Wrap"/>
-                    <Button Grid.Column="1" x:Name="btnScannerSettings" Content="تنظیمات اسکنر"
+                    <Button Grid.Column="1" x:Name="btnScannerSettings" Content="تنظیمات (اسکنر و اتصال)"
                             Style="{StaticResource PddGhostButton}"
                             Click="BtnScannerSettings_Click" Padding="10,6" FontSize="11.5" Margin="10,0,0,0"/>
                 </Grid>

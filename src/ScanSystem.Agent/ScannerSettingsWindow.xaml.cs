@@ -5,8 +5,9 @@ using System.Windows;
 namespace ScanSystem.Agent;
 
 /// <summary>
-/// پنجره «تنظیمات اسکنر»: لیست دستگاه‌های WIA موجود روی سیستم را نشان می‌دهد و به کاربر
-/// اجازه می‌دهد یکی را برای اسکن انتخاب کند، همچنین دو گزینه رفتاری را کنترل می‌کند:
+/// پنجره «تنظیمات ایجنت و اسکنر»: لیست دستگاه‌های WIA موجود روی سیستم را نشان می‌دهد و به کاربر
+/// اجازه می‌دهد یکی را برای اسکن انتخاب کند، همچنین تنظیمات سرور و اتصال و گزینه‌های رفتاری را کنترل می‌کند:
+///   - آدرس Hub سرور و مهلت پاسخ‌دهی (Time Out) SignalR
 ///   - ساخت تصویر آزمایشی وقتی اسکنری یافت نشود (پیش‌فرض خاموش)
 ///   - نادیده گرفتن (عدم ارسال) صفحات کاملاً سفید/خالی
 /// </summary>
@@ -45,6 +46,8 @@ public partial class ScannerSettingsWindow : Window
         lstScanners.ItemsSource = Scanners;
         chkPlaceholder.IsChecked = _settings.UsePlaceholderWhenNoScanner;
         chkSkipBlank.IsChecked = _settings.SkipBlankPages;
+        txtServerUrl.Text = _settings.ServerUrl;
+        txtTimeout.Text = _settings.ServerTimeoutSeconds.ToString();
 
         LoadScanners();
     }
@@ -82,6 +85,14 @@ public partial class ScannerSettingsWindow : Window
         _settings.SelectedScannerId = selected?.Id ?? "";
         _settings.UsePlaceholderWhenNoScanner = chkPlaceholder.IsChecked == true;
         _settings.SkipBlankPages = chkSkipBlank.IsChecked == true;
+
+        if (!string.IsNullOrWhiteSpace(txtServerUrl.Text))
+            _settings.ServerUrl = txtServerUrl.Text.Trim();
+
+        if (int.TryParse(txtTimeout.Text.Trim(), out var timeoutSec) && timeoutSec > 0)
+            _settings.ServerTimeoutSeconds = timeoutSec;
+        else
+            _settings.ServerTimeoutSeconds = 120;
 
         AgentSettings.Save(_settings);
         SettingsChanged = true;

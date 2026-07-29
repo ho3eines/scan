@@ -1,7 +1,7 @@
 <Window x:Class="ScanSystem.Agent.ScannerSettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="pdd Scan — تنظیمات اسکنر" Height="540" Width="460"
+        Title="pdd Scan — تنظیمات ایجنت و اسکنر" Height="640" Width="470"
         WindowStartupLocation="CenterOwner"
         ResizeMode="CanMinimize"
         FlowDirection="RightToLeft"
@@ -27,6 +27,28 @@
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="Foreground" Value="#64748B"/>
             <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <!-- ورودی متن مدرن -->
+        <Style x:Key="PddTextBox" TargetType="TextBox">
+            <Setter Property="Padding" Value="10,7"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="bd" Background="White" BorderBrush="#D4DCE8" BorderThickness="1"
+                                CornerRadius="9" SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="2,0"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter Property="BorderBrush" Value="#2563EB" TargetName="bd"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="PddButtonBase" TargetType="Button">
@@ -80,14 +102,15 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- هدر -->
         <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,14">
             <Image Source="logo.png" Width="36" Height="36" Margin="0,0,10,0"/>
             <StackPanel VerticalAlignment="Center">
-                <TextBlock Text="تنظیمات اسکنر" FontSize="17" FontWeight="Bold" Foreground="#1E293B"/>
-                <TextBlock Text="اسکنر مورد استفاده این ایستگاه کاری را انتخاب کنید" FontSize="11.5" Foreground="#64748B"/>
+                <TextBlock Text="تنظیمات ایجنت و اسکنر" FontSize="17" FontWeight="Bold" Foreground="#1E293B"/>
+                <TextBlock Text="تنظیمات اسکنر، سرور و مهلت پاسخ (Time Out) را مدیریت کنید" FontSize="11.5" Foreground="#64748B"/>
             </StackPanel>
         </StackPanel>
 
@@ -130,8 +153,45 @@
             </Grid>
         </Border>
 
-        <!-- کارت گزینه‌ها -->
+        <!-- کارت تنظیمات سرور و اتصال -->
         <Border Grid.Row="2" Style="{StaticResource CardBorder}">
+            <StackPanel>
+                <TextBlock Text="تنظیمات سرور و اتصال" Style="{StaticResource CardTitle}"/>
+
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="آدرس سرور (Hub):" VerticalAlignment="Center"
+                               Foreground="#334155" FontSize="12" Margin="0,0,10,0"/>
+                    <TextBox Grid.Column="1" x:Name="txtServerUrl"
+                             Style="{StaticResource PddTextBox}"
+                             FlowDirection="LeftToRight" TextAlignment="Left"/>
+                </Grid>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="تایم‌اوت سرور (Time Out):" VerticalAlignment="Center"
+                               Foreground="#334155" FontSize="12" Margin="0,0,10,0"/>
+                    <TextBox Grid.Column="1" x:Name="txtTimeout"
+                             Style="{StaticResource PddTextBox}" Width="70"
+                             FlowDirection="LeftToRight" TextAlignment="Center"
+                             HorizontalAlignment="Left"/>
+                    <TextBlock Grid.Column="2" Text="ثانیه (پیش‌فرض SignalR برابر 30 و توصیه ما 120 ثانیه)"
+                               Foreground="#64748B" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                </Grid>
+                <TextBlock Text="در شبکه‌های کند یا در زمان تاخیر سرور، افزایش مهلت پاسخ‌دهی از قطع اتصال جلوگیری می‌کند."
+                           Foreground="#94A3B8" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- کارت گزینه‌ها -->
+        <Border Grid.Row="3" Style="{StaticResource CardBorder}">
             <StackPanel>
                 <TextBlock Text="گزینه‌های رفتاری" Style="{StaticResource CardTitle}"/>
                 <CheckBox x:Name="chkPlaceholder" Content="در صورت نبود اسکنر، تصویر آزمایشی (Placeholder) بسازد"
@@ -144,7 +204,7 @@
         </Border>
 
         <!-- دکمه‌ها -->
-        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
             <Button x:Name="btnSave" Content="ذخیره" MinWidth="110" Height="40"
                     Style="{StaticResource PddPrimaryButton}" Click="BtnSave_Click" Margin="0,0,10,0"/>
             <Button x:Name="btnCancel" Content="انصراف" MinWidth="110" Height="40"

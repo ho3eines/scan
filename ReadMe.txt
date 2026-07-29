@@ -60,6 +60,7 @@
 
 Agent:
   - بدون دکمه اسکن دستی — تمام اسکن‌ها از وب ارسال می‌شوند
-  - منوی Tray: نمایش پنجره / تنظیمات اسکنر / شروع خودکار با ویندوز / خروج
-  - تنظیمات: agentsettings.json (ServerUrl, AutoConnect, MaxPages, SelectedScannerId, ...)
+  - منوی Tray: نمایش پنجره / تنظیمات (اسکنر و اتصال) / شروع خودکار با ویندوز / خروج
+  - قابلیت تنظیم مهلت پاسخ سرور (Time Out) در پنجره اصلی و پنجره تنظیمات (پیش‌فرض 120 ثانیه) برای جلوگیری از خطای Server timeout در SignalR
+  - تنظیمات: agentsettings.json (ServerUrl, ServerTimeoutSeconds, AutoConnect, MaxPages, SelectedScannerId, ...)
   - اگر اسکنر تنظیم نباشد → خطای «اسکنر تنظیم نیست» نمایش داده می‌شود
