@@ -1,267 +1,383 @@
-/* ───────────────────────── Index Page: Scan List ───────────────────────── */
+/* =========================================================================
+   index.css — استایل صفحه لیست اسکن‌ها (pdd Scan)
+   ========================================================================= */
 
-/* Reset for this page */
+/* ─────────────── متغیرهای سراسری ─────────────── */
 .si-app {
-    font-family: 'Segoe UI', Tahoma, sans-serif;
-    background: #f5f7fa;
+    --si-primary: #2563eb;
+    --si-primary-dark: #1d4ed8;
+    --si-primary-light: #dbeafe;
+    --si-success: #16a34a;
+    --si-success-light: #dcfce7;
+    --si-danger: #dc2626;
+    --si-danger-light: #fee2e2;
+    --si-warning: #d97706;
+    --si-warning-light: #fef3c7;
+    --si-muted: #64748b;
+    --si-border: #e2e8f0;
+    --si-bg: #f1f5f9;
+    --si-bg-soft: #f8fafc;
+    --si-radius: 14px;
+    --si-radius-sm: 10px;
+    --si-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 6px 16px rgba(15, 23, 42, 0.04);
+    --si-shadow-lg: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.06);
+
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--si-bg);
     min-height: 100vh;
-    padding: 1rem;
+    padding: 20px;
     max-width: 1400px;
     margin: 0 auto;
+    color: #0f172a;
+    animation: siPageIn 0.4s ease;
 }
 
-/* ─────────────── Header ─────────────── */
+.si-app * { box-sizing: border-box; }
 
+@keyframes siPageIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ─────────────── هدر ─────────────── */
 .si-header {
-    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
-    border-radius: 12px;
-    padding: 1.25rem 1.5rem;
-    margin-bottom: 1.25rem;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #1d4ed8 100%);
+    border-radius: 18px;
+    padding: 20px 24px;
+    margin-bottom: 20px;
+    box-shadow: 0 8px 32px rgba(15, 23, 42, 0.18);
+    position: relative;
+    overflow: hidden;
+}
+
+.si-header::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -20%;
+    width: 60%;
+    height: 200%;
+    background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%);
+    pointer-events: none;
 }
 
 .si-header-top {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    position: relative;
+    z-index: 1;
 }
 
 .si-title {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 14px;
     margin: 0;
     color: #fff;
 }
 
 .si-title-logo {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
     background: #fff;
-    padding: 4px;
+    padding: 5px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 .si-title-text {
     display: flex;
     flex-direction: column;
+    gap: 2px;
 }
 
 .si-title-brand {
-    font-size: 1.1rem;
-    letter-spacing: 0.5px;
+    font-size: 1.25rem;
+    letter-spacing: 0.3px;
+    font-weight: 800;
 }
 
 .si-title-sub {
-    font-size: 0.75rem;
-    opacity: 0.8;
-    margin-top: 2px;
+    font-size: 0.8rem;
+    opacity: 0.75;
+    font-weight: 500;
 }
 
-/* ─────────────── Pill (Status Badge) ─────────────── */
-
+/* ─────────────── Pill وضعیت ─────────────── */
 .si-pill {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
+    gap: 7px;
+    padding: 7px 16px;
     border-radius: 50px;
     font-size: 0.8rem;
     font-weight: 600;
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.12);
     color: #fff;
-    backdrop-filter: blur(10px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .si-pill.online {
-    background: rgba(46, 204, 113, 0.3);
-    border: 1px solid rgba(46, 204, 113, 0.5);
+    background: rgba(22, 163, 74, 0.25);
+    border-color: rgba(22, 163, 74, 0.4);
 }
 
 .si-pill.offline {
-    background: rgba(231, 76, 60, 0.3);
-    border: 1px solid rgba(231, 76, 60, 0.5);
+    background: rgba(220, 38, 38, 0.2);
+    border-color: rgba(220, 38, 38, 0.35);
 }
 
 .si-dot {
-    width: 8px;
-    height: 8px;
+    width: 9px;
+    height: 9px;
     border-radius: 50%;
-    background: #e74c3c;
-    animation: si-pulse 2s infinite;
+    background: var(--si-danger);
+    flex-shrink: 0;
 }
 
 .si-pill.online .si-dot {
-    background: #2ecc71;
+    background: #22c55e;
+    box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
+    animation: siPulse 2s infinite;
 }
 
-@keyframes si-pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+@keyframes siPulse {
+    0%, 100% { box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25); }
+    50% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.1); }
 }
 
-/* ─────────────── Cards ─────────────── */
-
+/* ─────────────── کارت‌ها ─────────────── */
 .si-card {
     background: #fff;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
-    margin-bottom: 1.25rem;
+    border-radius: var(--si-radius);
+    box-shadow: var(--si-shadow);
+    margin-bottom: 20px;
     overflow: hidden;
-    border: 1px solid #e9ecef;
+    border: 1px solid var(--si-border);
+    transition: box-shadow 0.2s ease;
+}
+
+.si-card:hover {
+    box-shadow: var(--si-shadow-lg);
 }
 
 .si-card-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0.9rem 1.25rem;
-    background: #f8f9fa;
-    border-bottom: 1px solid #e9ecef;
+    padding: 14px 20px;
+    background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+    border-bottom: 1px solid var(--si-border);
 }
 
 .si-card-title {
-    font-weight: 600;
+    font-weight: 700;
     font-size: 0.95rem;
-    color: #2c3e50;
+    color: #1e293b;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+}
+
+.si-card-title i {
+    font-size: 1.1rem;
+    color: var(--si-primary);
 }
 
 .si-count-badge {
-    background: #3498db;
+    background: linear-gradient(135deg, var(--si-primary), #3b82f6);
     color: #fff;
-    padding: 3px 10px;
+    padding: 4px 12px;
     border-radius: 50px;
     font-size: 0.75rem;
-    font-weight: 600;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
 }
 
 .si-card-body {
-    padding: 1.25rem;
+    padding: 20px;
 }
 
-/* ─────────────── Add Form ─────────────── */
+/* ─────────────── فرم افزودن ─────────────── */
+.si-add-card {
+    border: 1px solid rgba(37, 99, 235, 0.15);
+    box-shadow: 0 2px 12px rgba(37, 99, 235, 0.06);
+}
+
+.si-add-card .si-card-header {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.04), rgba(59, 130, 246, 0.06));
+    border-bottom-color: rgba(37, 99, 235, 0.12);
+}
 
 .si-add-card .si-card-body {
-    padding: 1rem 1.25rem;
+    padding: 16px 20px;
 }
 
 .si-add-form {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 12px;
     align-items: flex-end;
 }
 
 .si-field {
     flex: 1;
-    min-width: 150px;
+    min-width: 160px;
 }
 
 .si-field-label {
-    display: block;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #495057;
-    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--si-muted);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
 
-.si-field .form-control {
-    border-radius: 8px;
-    border: 1.5px solid #dee2e6;
-    transition: border-color 0.2s;
+/* ورودی‌های سفارشی */
+.si-input {
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    color: #0f172a;
+    background: #fff;
+    border: 1.5px solid var(--si-border);
+    border-radius: var(--si-radius-sm);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    font-family: inherit;
 }
 
-.si-field .form-control:focus {
-    border-color: #3498db;
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+.si-input::placeholder {
+    color: #94a3b8;
+    font-weight: 400;
 }
 
-/* ─────────────── Buttons ─────────────── */
+.si-input:focus {
+    border-color: var(--si-primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    background: #fff;
+}
 
+.si-input:hover:not(:focus) {
+    border-color: #cbd5e1;
+}
+
+/* ─────────────── دکمه‌ها ─────────────── */
 .si-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    padding: 8px 16px;
-    border-radius: 8px;
+    gap: 7px;
+    padding: 10px 20px;
+    border-radius: var(--si-radius-sm);
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 700;
     border: none;
     cursor: pointer;
     transition: all 0.2s ease;
     white-space: nowrap;
+    font-family: inherit;
+    position: relative;
+    overflow: hidden;
 }
 
+.si-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.2), transparent);
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.si-btn:hover::after { opacity: 1; }
+
 .si-btn:disabled {
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: not-allowed;
 }
 
+.si-btn:disabled::after { display: none; }
+
 .si-btn-add {
-    background: #2ecc71;
+    background: linear-gradient(135deg, var(--si-success), #22c55e);
     color: #fff;
-    padding: 8px 20px;
-    min-height: 38px;
+    padding: 10px 24px;
+    min-height: 42px;
+    box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3);
 }
 
 .si-btn-add:hover:not(:disabled) {
-    background: #27ae60;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(22, 163, 74, 0.4);
+}
+
+.si-btn-add:active:not(:disabled) {
+    transform: translateY(0);
 }
 
 .si-btn-scan {
-    background: #3498db;
+    background: linear-gradient(135deg, var(--si-primary), #3b82f6);
     color: #fff;
-    padding: 6px 14px;
+    padding: 7px 16px;
     font-size: 0.8rem;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
 }
 
 .si-btn-scan:hover:not(:disabled) {
-    background: #2980b9;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
 }
 
-/* ─────────────── Alert ─────────────── */
-
+/* ─────────────── پیام‌ها ─────────────── */
 .si-alert {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 0.8rem 1rem;
-    border-radius: 10px;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: var(--si-radius-sm);
+    margin-bottom: 16px;
+    font-size: 0.88rem;
     font-weight: 500;
+    animation: siSlideDown 0.3s ease;
 }
 
+@keyframes siSlideDown {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: none; }
+}
+
+.si-alert i { font-size: 1.1rem; flex-shrink: 0; }
+
 .si-alert-success {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
+    background: var(--si-success-light);
+    color: #14532d;
+    border: 1px solid rgba(22, 163, 74, 0.2);
 }
 
 .si-alert-danger {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
+    background: var(--si-danger-light);
+    color: #7f1d1d;
+    border: 1px solid rgba(220, 38, 38, 0.2);
 }
 
 .si-alert-info {
-    background: #d1ecf1;
-    color: #0c5460;
-    border: 1px solid #bee5eb;
+    background: var(--si-primary-light);
+    color: #1e3a8a;
+    border: 1px solid rgba(37, 99, 235, 0.2);
 }
 
 .si-alert-warning {
-    background: #fff3cd;
-    color: #856404;
-    border: 1px solid #ffeaa7;
+    background: var(--si-warning-light);
+    color: #78350f;
+    border: 1px solid rgba(217, 119, 6, 0.2);
 }
 
 .si-alert-close {
@@ -269,145 +385,200 @@
     background: none;
     border: none;
     color: inherit;
-    opacity: 0.6;
+    opacity: 0.5;
     cursor: pointer;
     padding: 4px;
+    transition: opacity 0.15s;
+    font-size: 0.9rem;
 }
 
-.si-alert-close:hover {
-    opacity: 1;
-}
+.si-alert-close:hover { opacity: 1; }
 
-/* ─────────────── Table ─────────────── */
-
+/* ─────────────── جدول ─────────────── */
 .si-table-wrap {
     overflow-x: auto;
+    border-radius: var(--si-radius-sm);
+    border: 1px solid var(--si-border);
 }
 
 .si-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.88rem;
+    font-size: 0.85rem;
 }
 
 .si-table thead th {
-    background: #f1f3f5;
-    color: #495057;
-    font-weight: 600;
-    padding: 10px 14px;
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    color: #475569;
+    font-weight: 700;
+    padding: 12px 16px;
     text-align: right;
-    border-bottom: 2px solid #dee2e6;
+    border-bottom: 2px solid var(--si-border);
     white-space: nowrap;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
 
 .si-table tbody tr {
-    border-bottom: 1px solid #f1f3f5;
-    transition: background 0.15s;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s, box-shadow 0.15s;
+}
+
+.si-table tbody tr:nth-child(even) {
+    background: #fafbfc;
 }
 
 .si-table tbody tr:hover {
-    background: #f8f9fa;
+    background: #f0f7ff;
+    box-shadow: inset 3px 0 0 var(--si-primary);
 }
 
 .si-table td {
-    padding: 10px 14px;
+    padding: 12px 16px;
     vertical-align: middle;
-    color: #333;
+    color: #334155;
 }
 
 .si-cell-code {
-    font-family: 'Courier New', monospace;
+    font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
     font-weight: 600;
-    color: #2c3e50;
+    color: var(--si-primary-dark);
     direction: ltr;
     text-align: left;
+    font-size: 0.82rem;
+    background: rgba(37, 99, 235, 0.04);
+    border-radius: 6px;
 }
 
 .si-cell-date {
-    font-size: 0.8rem;
-    color: #6c757d;
+    font-size: 0.78rem;
+    color: var(--si-muted);
     white-space: nowrap;
 }
 
 .si-cell-count {
     text-align: center;
-    font-weight: 600;
-    color: #3498db;
+    font-weight: 700;
+    color: var(--si-primary);
+    font-size: 0.9rem;
 }
 
 .si-row-error {
-    background: #fff5f5;
+    background: rgba(220, 38, 38, 0.04) !important;
+}
+
+.si-row-error:hover {
+    background: rgba(220, 38, 38, 0.08) !important;
 }
 
 .si-row-done {
-    background: #f0fff4;
+    background: rgba(22, 163, 74, 0.03) !important;
 }
 
-/* ─────────────── Status Badge ─────────────── */
+.si-row-done:hover {
+    background: rgba(22, 163, 74, 0.07) !important;
+}
 
+/* ─────────────── وضعیت ─────────────── */
 .si-status {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 3px 10px;
+    padding: 4px 12px;
     border-radius: 50px;
-    font-size: 0.78rem;
-    font-weight: 600;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.2px;
 }
 
+.si-status i { font-size: 0.7rem; }
+
 .si-status-pending {
-    background: #e9ecef;
-    color: #495057;
+    background: #f1f5f9;
+    color: #64748b;
 }
 
 .si-status-processing {
-    background: #fff3cd;
-    color: #856404;
+    background: var(--si-warning-light);
+    color: #92400e;
+    animation: siPulseStatus 1.5s infinite;
+}
+
+@keyframes siPulseStatus {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
 }
 
 .si-status-done {
-    background: #d4edda;
-    color: #155724;
+    background: var(--si-success-light);
+    color: #166534;
 }
 
 .si-status-error {
-    background: #f8d7da;
-    color: #721c24;
+    background: var(--si-danger-light);
+    color: #991b1b;
 }
 
-/* ─────────────── Actions ─────────────── */
-
+/* ─────────────── عملیات ─────────────── */
 .si-actions {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     align-items: center;
 }
 
-/* ─────────────── Empty State ─────────────── */
-
+/* ─────────────── حالت خالی ─────────────── */
 .si-empty {
     text-align: center;
-    padding: 3rem 1rem;
-    color: #6c757d;
+    padding: 48px 20px;
+    color: var(--si-muted);
 }
 
-.si-empty i {
-    font-size: 2.5rem;
-    display: block;
-    margin-bottom: 0.75rem;
-    opacity: 0.5;
+.si-empty-icon {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 16px;
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    color: #94a3b8;
 }
 
 .si-empty p {
     font-size: 0.95rem;
     margin: 0;
+    font-weight: 500;
 }
 
-/* ─────────────── Responsive ─────────────── */
+.si-empty small {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.82rem;
+    color: #94a3b8;
+}
 
+/* ─────────────── واکنش‌گرا ─────────────── */
 @media (max-width: 768px) {
     .si-app {
-        padding: 0.5rem;
+        padding: 12px;
+    }
+
+    .si-header {
+        padding: 16px;
+        border-radius: 14px;
+    }
+
+    .si-header-top {
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+    }
+
+    .si-title {
+        justify-content: center;
     }
 
     .si-add-form {
@@ -420,13 +591,22 @@
 
     .si-table td,
     .si-table th {
-        padding: 8px 10px;
-        font-size: 0.8rem;
+        padding: 10px 12px;
+        font-size: 0.78rem;
     }
 
-    .si-header-top {
-        flex-direction: column;
-        gap: 0.75rem;
-        text-align: center;
+    .si-card-body {
+        padding: 14px;
+    }
+}
+
+@media (max-width: 480px) {
+    .si-title-logo {
+        width: 40px;
+        height: 40px;
+    }
+
+    .si-title-brand {
+        font-size: 1.1rem;
     }
 }

@@ -22,7 +22,7 @@
                 <img class="si-title-logo" src="img/pddscan-logo.png" alt="pdd Scan" />
                 <span class="si-title-text">
                     <b class="si-title-brand">pdd Scan</b>
-                    <small class="si-title-sub">لیست اسکن‌ها</small>
+                    <small class="si-title-sub">سیستم مدیریت اسکن مدارک</small>
                 </span>
             </h5>
             <span class="si-pill @(isConnected ? "online" : "offline")">
@@ -35,28 +35,28 @@
     <!-- فرم افزودن -->
     <div class="si-card si-add-card">
         <div class="si-card-header">
-            <span class="si-card-title"><i class="bi bi-plus-circle"></i> افزودن اسکن جدید</span>
+            <span class="si-card-title"><i class="bi bi-plus-circle-fill"></i> افزودن اسکن جدید</span>
         </div>
         <div class="si-card-body">
             <div class="si-add-form">
                 <div class="si-field">
                     <label class="si-field-label">اینکویری کد</label>
-                    <input type="text" class="form-control form-control-sm" placeholder="کد اینکویری" @bind="newInquiryCode" />
+                    <input type="text" class="si-input" placeholder="کد اینکویری" @bind="newInquiryCode" />
                 </div>
                 <div class="si-field">
                     <label class="si-field-label">نام و نام خانوادگی</label>
-                    <input type="text" class="form-control form-control-sm" placeholder="نام کامل" @bind="newFullName" />
+                    <input type="text" class="si-input" placeholder="نام کامل" @bind="newFullName" />
                 </div>
                 <div class="si-field">
                     <label class="si-field-label">سافتور کد</label>
-                    <input type="text" class="form-control form-control-sm" placeholder="کد سافتور" @bind="newSoftwareCode" />
+                    <input type="text" class="si-input" placeholder="کد سافتور" @bind="newSoftwareCode" />
                 </div>
                 <div class="si-field">
                     <label class="si-field-label">ریلیشن کد</label>
-                    <input type="text" class="form-control form-control-sm" placeholder="کد ریلیشن" @bind="newRelationCode" />
+                    <input type="text" class="si-input" placeholder="کد ریلیشن" @bind="newRelationCode" />
                 </div>
                 <button class="si-btn si-btn-add" @onclick="AddInquiry">
-                    <i class="bi bi-plus-lg"></i> افزودن
+                    <i class="bi bi-plus-lg"></i> افزودن و اسکن
                 </button>
             </div>
         </div>
@@ -66,7 +66,7 @@
     @if (!string.IsNullOrEmpty(message))
     {
         <div class="si-alert si-alert-@messageType" role="alert">
-            <i class="bi bi-@(messageType == "success" ? "check-circle" : messageType == "danger" ? "exclamation-triangle" : "info-circle")"></i>
+            <i class="bi bi-@(messageType == "success" ? "check-circle-fill" : messageType == "danger" ? "exclamation-triangle-fill" : "info-circle-fill")"></i>
             <span>@message</span>
             <button type="button" class="si-alert-close" @onclick="() => message = null">
                 <i class="bi bi-x-lg"></i>
@@ -84,15 +84,20 @@
             @if (requests == null)
             {
                 <div class="si-empty">
-                    <div class="spinner-border text-primary"></div>
+                    <div class="si-empty-icon">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
                     <p>در حال بارگذاری...</p>
                 </div>
             }
             else if (requests.Rows.Count == 0)
             {
                 <div class="si-empty">
-                    <i class="bi bi-inbox"></i>
-                    <p>هنوز موردی ثبت نشده است.</p>
+                    <div class="si-empty-icon">
+                        <i class="bi bi-inbox"></i>
+                    </div>
+                    <p>هنوز موردی ثبت نشده است</p>
+                    <small>از فرم بالا یک اسکن جدید اضافه کنید</small>
                 </div>
             }
             else
@@ -138,7 +143,7 @@
                                     <td>
                                         <div class="si-actions">
                                             <button class="si-btn si-btn-scan" @onclick="() => GoToScan(relationCode, inquiryCode, softwareCode, fullName)" title="اسکن">
-                                                <i class="bi bi-camera"></i> اسکن
+                                                <i class="bi bi-camera-fill"></i> اسکن
                                             </button>
                                         </div>
                                     </td>
@@ -296,11 +301,11 @@
 
     private static string GetStatusIcon(string status) => status switch
     {
-        ScanStatus.Pending => "clock",
+        ScanStatus.Pending => "clock-fill",
         ScanStatus.Processing => "arrow-repeat",
-        ScanStatus.Done => "check-circle",
-        ScanStatus.Error => "exclamation-triangle",
-        _ => "question-circle"
+        ScanStatus.Done => "check-circle-fill",
+        ScanStatus.Error => "exclamation-triangle-fill",
+        _ => "question-circle-fill"
     };
 
     private static string GetStatusText(string status) => status switch

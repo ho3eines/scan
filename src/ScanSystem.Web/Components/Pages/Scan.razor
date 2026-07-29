@@ -152,36 +152,48 @@
     {
         <div class="sa-card">
             <div class="sa-card-header">
-                <span class="sa-card-title"><i class="bi bi-info-circle"></i> اطلاعات اسکن</span>
+                <span class="sa-card-title"><i class="bi bi-person-vcard"></i> اطلاعات اسکن</span>
             </div>
             <div class="sa-card-body">
                 <div class="sa-info-grid">
                     @if (!string.IsNullOrEmpty(CurrentInquiryCode))
                     {
                         <div class="sa-info-item">
-                            <span class="sa-info-label">اینکویری کد</span>
-                            <span class="sa-info-value">@CurrentInquiryCode</span>
+                            <div class="sa-info-icon"><i class="bi bi-hash"></i></div>
+                            <div class="sa-info-content">
+                                <span class="sa-info-label">اینکویری کد</span>
+                                <span class="sa-info-value">@CurrentInquiryCode</span>
+                            </div>
                         </div>
                     }
                     @if (!string.IsNullOrEmpty(CurrentFullName))
                     {
                         <div class="sa-info-item">
-                            <span class="sa-info-label">نام و نام خانوادگی</span>
-                            <span class="sa-info-value">@CurrentFullName</span>
+                            <div class="sa-info-icon"><i class="bi bi-person"></i></div>
+                            <div class="sa-info-content">
+                                <span class="sa-info-label">نام و نام خانوادگی</span>
+                                <span class="sa-info-value">@CurrentFullName</span>
+                            </div>
                         </div>
                     }
                     @if (!string.IsNullOrEmpty(CurrentSoftwareCode))
                     {
                         <div class="sa-info-item">
-                            <span class="sa-info-label">سافتور کد</span>
-                            <span class="sa-info-value">@CurrentSoftwareCode</span>
+                            <div class="sa-info-icon"><i class="bi bi-code-square"></i></div>
+                            <div class="sa-info-content">
+                                <span class="sa-info-label">سافتور کد</span>
+                                <span class="sa-info-value">@CurrentSoftwareCode</span>
+                            </div>
                         </div>
                     }
                     @if (!string.IsNullOrEmpty(CurrentRelationCode))
                     {
                         <div class="sa-info-item">
-                            <span class="sa-info-label">ریلیشن کد</span>
-                            <span class="sa-info-value">@CurrentRelationCode</span>
+                            <div class="sa-info-icon"><i class="bi bi-link-45deg"></i></div>
+                            <div class="sa-info-content">
+                                <span class="sa-info-label">ریلیشن کد</span>
+                                <span class="sa-info-value">@CurrentRelationCode</span>
+                            </div>
                         </div>
                     }
                 </div>
