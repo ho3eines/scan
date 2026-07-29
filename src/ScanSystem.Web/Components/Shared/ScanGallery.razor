@@ -127,12 +127,6 @@
                 <span>چرخش</span>
             </button>
 
-            <label class="sa-action mb-0">
-                <span class="sa-action-icon"><i class="bi bi-upload"></i></span>
-                <span>جایگزینی</span>
-                <InputFile OnChange="ReplaceImage" style="display:none" accept="image/*" />
-            </label>
-
             <div class="sa-group-field">
                 <i class="bi bi-folder2-open"></i>
                 <select class="form-select form-select-sm sa-group-select" @onchange="AssignModalToGroup" aria-label="انتخاب گروه">
@@ -435,41 +429,6 @@
             else
             {
                 await Notify("خطا در چرخش تصویر.", "danger");
-            }
-        }
-        catch (Exception ex)
-        {
-            await Notify($"خطا: {ex.Message}", "danger");
-        }
-        finally
-        {
-            modalBusy = false;
-        }
-    }
-
-    private async Task ReplaceImage(InputFileChangeEventArgs e)
-    {
-        if (modalImageId == null || Hub == null) return;
-        var file = e.File;
-        if (file == null) return;
-
-        modalBusy = true;
-        try
-        {
-            const long maxBytes = 40L * 1024 * 1024;
-            using var ms = new MemoryStream();
-            await file.OpenReadStream(maxBytes).CopyToAsync(ms);
-            var data = ms.ToArray();
-
-            var ok = await Hub.InvokeAsync<bool>("ReplaceImage", modalImageId.Value, data);
-            if (ok)
-            {
-                await OpenImage(modalImageId.Value);
-                await Notify("تصویر جایگزین شد.", "success");
-            }
-            else
-            {
-                await Notify("خطا در جایگزینی تصویر.", "danger");
             }
         }
         catch (Exception ex)
