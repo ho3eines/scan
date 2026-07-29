@@ -1,11 +1,4 @@
-/*
-============================================================================
-Sample Data Script - PddDocuments Database
-============================================================================
-این اسکریپت داده‌های نمونه برای تست و توسعه ایجاد می‌کند.
-اجرا با: sqlcmd -S . -E -i 02_SampleData.sql
-============================================================================
-*/
+
 
 USE [PddDocuments];
 GO
@@ -22,6 +15,14 @@ ELSE
 BEGIN
     SELECT @AgentId = Id FROM dbo.Agents WHERE MachineName = N'TEST-PC';
 END
+GO
+
+------------------------------------------------------------------
+--IF OBJECT_ID(N'dbo.ScanRequests', N'U') IS not NULL
+--BEGIN
+--    alter table dbo.ScanRequests add FullName nvarchar(100)
+--END
+
 GO
 
 -- ───────────────────────── Sample ScanRequests ─────────────────────────
