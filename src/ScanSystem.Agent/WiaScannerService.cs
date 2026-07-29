@@ -214,6 +214,9 @@ public sealed class ScanSession : IDisposable
     /// <summary>true یعنی اسکنر (یا اسکنر انتخاب‌شده) یافت نشد و هیچ تصویر آزمایشی هم تولید نشده است.</summary>
     public bool ScannerMissing { get; private set; }
 
+    /// <summary>true یعنی نشست در حالت تصویر آزمایشی است (هیچ دستگاهی متصل نشده و کاربر تصویر تستی را مجاز کرده).</summary>
+    public bool IsSimulated => _simulate && _device is null;
+
     internal ScanSession(string machineName, int maxPages, bool allowBlankPlaceholder, string? preferredDeviceId)
     {
         _machineName = machineName;
