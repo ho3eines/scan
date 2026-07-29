@@ -1,0 +1,282 @@
+@using System.Data
+@using Microsoft.AspNetCore.SignalR.Client
+@using ScanSystem.Shared
+@using ScanSystem.Web.Services
+@implements IAsyncDisposable
+
+<div class="sa-gallery">
+    <div class="sa-gallery-header">
+        <span class="sa-gallery-title">
+            <i class="bi bi-images"></i>
+            گالری تصاویر اسکن‌شده
+        </span>
+        <span class="sa-gallery-count">@TotalCount تصویر</span>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="sa-gallery-loading">
+            <div class="spinner-border text-primary" role="status"></div>
+            <span>در حال بارگذاری...</span>
+        </div>
+    }
+    else if (images == null || images.Rows.Count == 0)
+    {
+        <div class="sa-gallery-empty">
+            <i class="bi bi-image"></i>
+            <p>هنوز تصویری اسکن نشده است</p>
+            <small>پس از اسکن، تصاویر اینجا نمایش داده می‌شوند</small>
+        </div>
+    }
+    else
+    {
+        <div class="sa-gallery-grid">
+            @foreach (DataRow row in images.Rows)
+            {
+                var id = Guid.Parse(Str(row, "Id"));
+                var fileName = Str(row, "FileName");
+                var pageNum = Int(row, "PageNumber");
+                var relationCode = Str(row, "RelationCode");
+                var inquiryCode = Str(row, "InquiryCode");
+                var createdAt = FormatDate(row, "CreatedAt");
+
+                <div class="sa-gallery-item" @key="id">
+                    <div class="sa-gallery-thumb">
+                        <img src="/api/images/@(id)/thumbnail" 
+                             alt="@fileName"
+                             onerror="this.src='/img/placeholder.png'" />
+                        <span class="sa-gallery-page">ص @pageNum</span>
+                    </div>
+                    <div class="sa-gallery-meta">
+                        <span class="sa-gallery-filename" title="@fileName">@fileName</span>
+                        <div class="sa-gallery-info">
+                            @if (!string.IsNullOrEmpty(relationCode))
+                            {
+                                <span class="sa-gallery-tag">@relationCode</span>
+                            }
+                            @if (!string.IsNullOrEmpty(inquiryCode))
+                            {
+                                <span class="sa-gallery-tag">@inquiryCode</span>
+                            }
+                        </div>
+                        <span class="sa-gallery-date">@createdAt</span>
+                    </div>
+                    <div class="sa-gallery-actions">
+                        <button class="sa-gallery-btn" title="مشاهده بزرگ" @onclick="() => ViewImage(id)">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <button class="sa-gallery-btn" title="چرخش ۹۰°" @onclick="() => RotateImage(id, 90)">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                        <button class="sa-gallery-btn sa-gallery-btn-danger" title="حذف" @onclick="() => ConfirmDelete(id, fileName)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (TotalCount > Take)
+        {
+            <div class="sa-gallery-pagination">
+                <button class="sa-gallery-btn" disabled="@(Skip == 0)" @onclick="PrevPage">
+                    <i class="bi bi-chevron-right"></i> قبلی
+                </button>
+                <span class="sa-gallery-page-info">
+                    نمایش @(Skip + 1) تا @(Math.Min(Skip + Take, TotalCount)) از @TotalCount
+                </span>
+                <button class="sa-gallery-btn" disabled="@(Skip + Take >= TotalCount)" @onclick="NextPage">
+                    بعدی <i class="bi bi-chevron-left"></i>
+                </button>
+            </div>
+        }
+    }
+</div>
+
+@* Modal for image preview *@
+@if (selectedImageId.HasValue)
+{
+    <div class="sa-gallery-modal" @onclick="CloseModal">
+        <div class="sa-gallery-modal-content" @onclick:stopPropagation>
+            <button class="sa-gallery-modal-close" @onclick="CloseModal">
+                <i class="bi bi-x-lg"></i>
+            </button>
+            <img src="/api/images/@(selectedImageId)" alt="تصویر اسکن‌شده" />
+        </div>
+    </div>
+}
+
+@* Delete confirmation modal *@
+@if (deleteConfirmId.HasValue)
+{
+    <div class="sa-gallery-modal" @onclick="CancelDelete">
+        <div class="sa-gallery-modal-confirm" @onclick:stopPropagation>
+            <div class="sa-gallery-modal-icon">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+            </div>
+            <h5>حذف تصویر</h5>
+            <p>آیا از حذف این تصویر مطمئن هستید؟</p>
+            <p class="sa-gallery-modal-filename">@deleteConfirmFileName</p>
+            <div class="sa-gallery-modal-actions">
+                <button class="sa-gallery-btn sa-gallery-btn-danger" @onclick="ExecuteDelete">
+                    <i class="bi bi-trash"></i> حذف
+                </button>
+                <button class="sa-gallery-btn" @onclick="CancelDelete">
+                    انصراف
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public HubConnection? Hub { get; set; }
+
+    [Parameter]
+    public string? RelationCode { get; set; }
+
+    [Parameter]
+    public string? InquiryCode { get; set; }
+
+    [Parameter]
+    public string? SoftwareCode { get; set; }
+
+    private DataTable? images;
+    private int TotalCount { get; set; }
+    private int Skip { get; set; } = 0;
+    private int Take { get; set; } = 12;
+    private bool isLoading = false;
+
+    private Guid? selectedImageId = null;
+    private Guid? deleteConfirmId = null;
+    private string deleteConfirmFileName = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadGallery();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Skip = 0; // Reset to first page when filters change
+        await LoadGallery();
+    }
+
+    public async Task RefreshAsync()
+    {
+        await LoadGallery();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadGallery()
+    {
+        isLoading = true;
+        try
+        {
+            var (data, total) = await ScanService.GetGalleryPageAsync(
+                Skip, Take, null, null,
+                RelationCode, InquiryCode, SoftwareCode);
+            images = data;
+            TotalCount = total;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error loading gallery: {ex.Message}");
+            images = new DataTable();
+            TotalCount = 0;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task PrevPage()
+    {
+        if (Skip > 0)
+        {
+            Skip = Math.Max(0, Skip - Take);
+            await LoadGallery();
+        }
+    }
+
+    private async Task NextPage()
+    {
+        if (Skip + Take < TotalCount)
+        {
+            Skip += Take;
+            await LoadGallery();
+        }
+    }
+
+    private void ViewImage(Guid id)
+    {
+        selectedImageId = id;
+    }
+
+    private void CloseModal()
+    {
+        selectedImageId = null;
+    }
+
+    private void ConfirmDelete(Guid id, string fileName)
+    {
+        deleteConfirmId = id;
+        deleteConfirmFileName = fileName;
+    }
+
+    private void CancelDelete()
+    {
+        deleteConfirmId = null;
+        deleteConfirmFileName = "";
+    }
+
+    private async Task ExecuteDelete()
+    {
+        if (!deleteConfirmId.HasValue || Hub == null) return;
+
+        try
+        {
+            await Hub.InvokeAsync("DeleteImage", deleteConfirmId.Value);
+            deleteConfirmId = null;
+            deleteConfirmFileName = "";
+            await LoadGallery();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error deleting image: {ex.Message}");
+        }
+    }
+
+    private async Task RotateImage(Guid id, int angle)
+    {
+        if (Hub == null) return;
+
+        try
+        {
+            var success = await Hub.InvokeAsync<bool>("RotateImage", id, angle);
+            if (success)
+            {
+                await LoadGallery();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error rotating image: {ex.Message}");
+        }
+    }
+
+    private static string Str(DataRow r, string col)
+        => r.IsNull(col) ? string.Empty : r[col]?.ToString() ?? string.Empty;
+
+    private static int Int(DataRow r, string col)
+        => r.IsNull(col) ? 0 : Convert.ToInt32(r[col]);
+
+    private static string FormatDate(DataRow r, string col)
+        => r.IsNull(col) ? "—" : Convert.ToDateTime(r[col]).ToString("yyyy/MM/dd HH:mm");
+
+    public async ValueTask DisposeAsync()
+    {
+    }
+}
