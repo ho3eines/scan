@@ -35,6 +35,7 @@ public partial class MainWindow : Window
         InitializeComponent();
 
         txtServerUrl.Text = _settings.ServerUrl;
+        txtServerTimeout.Text = _settings.ServerTimeoutSeconds.ToString();
         ShowInTaskbar = !startHidden;
 
         CreateTrayIcon();
@@ -70,16 +71,29 @@ public partial class MainWindow : Window
         {
             btnConnect.IsEnabled = false;
 
-            // ذخیره آدرس واردشده
+            // ذخیره آدرس واردشده و تایم‌اوت
             _settings.ServerUrl = txtServerUrl.Text.Trim();
+            if (int.TryParse(txtServerTimeout.Text.Trim(), out var timeoutSeconds) && timeoutSeconds > 0)
+            {
+                _settings.ServerTimeoutSeconds = timeoutSeconds;
+            }
+            else
+            {
+                _settings.ServerTimeoutSeconds = 120;
+                txtServerTimeout.Text = "120";
+            }
             AgentSettings.Save(_settings);
 
-            Log("در حال اتصال به سرور...");
+            Log($"در حال اتصال به سرور (تایم‌اوت: {_settings.ServerTimeoutSeconds} ثانیه)...");
 
             _connection = new HubConnectionBuilder()
                 .WithUrl(_settings.ServerUrl)
                 .WithAutomaticReconnect() // Auto-reconnect طبق نیازمندی
                 .Build();
+
+            _connection.ServerTimeout = TimeSpan.FromSeconds(_settings.ServerTimeoutSeconds);
+            _connection.HandshakeTimeout = TimeSpan.FromSeconds(Math.Max(30, _settings.ServerTimeoutSeconds / 2));
+            _connection.KeepAliveInterval = TimeSpan.FromSeconds(Math.Min(15, Math.Max(5, _settings.ServerTimeoutSeconds / 4)));
 
             // قرارداد Hub: ScanRequested(machineName, requestId, isMultiPage)
             _connection.On<string, Guid, bool>("ScanRequested", (machineName, requestId, isMultiPage) =>
@@ -153,6 +167,12 @@ public partial class MainWindow : Window
         {
             try
             {
+                if (_connection.State == HubConnectionState.Disconnected)
+                {
+                    Log("اتصال قطع شده است؛ تلاش برای برقراری مجدد اتصال...");
+                    await _connection.StartAsync();
+                }
+
                 // قرارداد Hub: RegisterAgent(machineName)
                 await _connection.InvokeAsync("RegisterAgent", _machineName);
                 Log($"ثبت‌نام انجام شد: {_machineName}");
@@ -162,7 +182,7 @@ public partial class MainWindow : Window
             {
                 Log($"ثبت‌نام ناموفق بود (تلاش {attempt}/{maxAttempts}): {ex.Message}");
                 if (attempt < maxAttempts)
-                    await Task.Delay(TimeSpan.FromMilliseconds(1200));
+                    await Task.Delay(TimeSpan.FromMilliseconds(2000));
             }
         }
 
@@ -300,7 +320,7 @@ public partial class MainWindow : Window
 
             menu.Items.Add("نمایش پنجره", null, (_, _) => ShowWindow());
 
-            menu.Items.Add("تنظیمات اسکنر", null, (_, _) => Dispatcher.Invoke(() =>
+            menu.Items.Add("تنظیمات (اسکنر و اتصال)", null, (_, _) => Dispatcher.Invoke(() =>
             {
                 ShowWindow();
                 BtnScannerSettings_Click(this, new RoutedEventArgs());
@@ -445,7 +465,7 @@ public partial class MainWindow : Window
         }
         else
         {
-            txtScanner.Text = "اسکنر تنظیم نیست — از «تنظیمات اسکنر» یک دستگاه انتخاب کنید.";
+            txtScanner.Text = "اسکنر تنظیم نیست — از «تنظیمات (اسکنر و اتصال)» یک دستگاه انتخاب کنید.";
         }
     }
 
@@ -454,7 +474,9 @@ public partial class MainWindow : Window
         var win = new ScannerSettingsWindow(_wia, _settings) { Owner = this };
         if (win.ShowDialog() == true && win.SettingsChanged)
         {
-            Log("تنظیمات اسکنر ذخیره شد.");
+            Log($"تنظیمات ذخیره شد (تایم‌اوت سرور: {_settings.ServerTimeoutSeconds} ثانیه).");
+            txtServerUrl.Text = _settings.ServerUrl;
+            txtServerTimeout.Text = _settings.ServerTimeoutSeconds.ToString();
             DetectAndShowScanner();
         }
     }

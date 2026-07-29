@@ -130,11 +130,13 @@ dotnet run
 ```
 
 - Agent با **Machine Name** ثبت می‌شود و آیکون آن در **Tray** قرار می‌گیرد.
-- از منوی Tray → **تنظیمات اسکنر**: انتخاب دستگاه WIA
+- از منوی Tray → **تنظیمات (اسکنر و اتصال)**: انتخاب دستگاه WIA، تنظیم آدرس سرور و مهلت پاسخ (Time Out)
+- امکان تنظیم مهلت پاسخ سرور (Time Out) در پنجره اصلی و پنجره تنظیمات برای جلوگیری از خطای `Server timeout (30000.00ms) elapsed without receiving a message from the server` در شبکه‌های کند یا پردازش‌های طولانی (پیش‌فرض ۱۲۰ ثانیه).
 - تنظیمات در `agentsettings.json`:
   ```json
   {
     "ServerUrl": "http://SERVER-IP:5002/scanhub",
+    "ServerTimeoutSeconds": 120,
     "AutoConnect": true,
     "AutoStart": false,
     "MaxPages": 50,

@@ -1,6 +1,7 @@
 {
   "DisplayName": "",
   "ServerUrl": "http://localhost:5002/scanhub",
+  "ServerTimeoutSeconds": 120,
   "AutoConnect": true,
   "StartMinimized": true,
   "AutoStart": true,
