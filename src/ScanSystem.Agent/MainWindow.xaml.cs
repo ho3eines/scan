@@ -272,7 +272,6 @@ public partial class MainWindow : Window
 
 
 
-
     // ───────────────────────── Tray Icon ─────────────────────────
 
     private void CreateTrayIcon()
@@ -420,6 +419,11 @@ public partial class MainWindow : Window
 
     // ───────────────────────── UI helpers ─────────────────────────
 
+    private static readonly System.Windows.Media.SolidColorBrush OnlineBrush =
+        new(System.Windows.Media.Color.FromRgb(0x16, 0xA3, 0x4A));   // #16A34A
+    private static readonly System.Windows.Media.SolidColorBrush OfflineBrush =
+        new(System.Windows.Media.Color.FromRgb(0xDC, 0x26, 0x26));   // #DC2626
+
     private void DetectAndShowScanner()
     {
         bool hasScanner = false;
@@ -452,24 +456,18 @@ public partial class MainWindow : Window
 
     private void UpdateStatus(bool connected)
     {
-        // رنگ‌های هماهنگ با طراحی جدید کارت وضعیت
-        var onlineBrush = new System.Windows.Media.SolidColorBrush(
-            System.Windows.Media.Color.FromRgb(0x16, 0xA3, 0x4A));   // #16A34A
-        var offlineBrush = new System.Windows.Media.SolidColorBrush(
-            System.Windows.Media.Color.FromRgb(0xDC, 0x26, 0x26));   // #DC2626
-
         if (connected)
         {
             txtStatus.Text = "آنلاین";
-            txtStatus.Foreground = onlineBrush;
-            statusDot.Fill = onlineBrush;
+            txtStatus.Foreground = OnlineBrush;
+            statusDot.Fill = OnlineBrush;
             btnConnect.Content = "قطع اتصال";
         }
         else
         {
             txtStatus.Text = "آفلاین";
-            txtStatus.Foreground = offlineBrush;
-            statusDot.Fill = offlineBrush;
+            txtStatus.Foreground = OfflineBrush;
+            statusDot.Fill = OfflineBrush;
             btnConnect.Content = "اتصال";
         }
     }

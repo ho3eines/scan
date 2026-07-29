@@ -246,16 +246,16 @@
 
     private void AddInquiry()
     {
-        if (string.IsNullOrWhiteSpace(newInquiryCode))
+        var inqCode = newInquiryCode?.Trim();
+        var name = newFullName?.Trim();
+        var swCode = newSoftwareCode?.Trim();
+        var relCode = newRelationCode?.Trim();
+
+        if (string.IsNullOrWhiteSpace(inqCode))
         {
             ShowMessage("اینکویری کد الزامی است.", "danger");
             return;
         }
-
-        var relCode = newRelationCode;
-        var inqCode = newInquiryCode;
-        var swCode = newSoftwareCode;
-        var name = newFullName;
 
         newInquiryCode = string.Empty;
         newFullName = string.Empty;

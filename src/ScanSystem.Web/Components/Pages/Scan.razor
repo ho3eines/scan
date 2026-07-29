@@ -224,6 +224,7 @@
     private bool isConnected = false;
     private bool isScanning = false;
     private bool scannerNotConfigured = false;
+    private bool initialized = false;
 
     // Messages
     private string? message;
@@ -252,6 +253,14 @@
     {
         await LoadSettings();
         await LoadAgents();
+        initialized = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // اگر query parameters تغییر کرد، StateHasChanged فراخوانی شود
+        // تا اطلاعات جدید نمایش داده شود
+        if (initialized) StateHasChanged();
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
