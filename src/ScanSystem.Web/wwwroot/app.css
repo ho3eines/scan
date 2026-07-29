@@ -1,5 +1,11 @@
 a, .btn-link {
-    color: #006bb7;
+    color: #2563eb;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #1d4ed8;
+    text-decoration: underline;
 }
 
 .btn-primary {

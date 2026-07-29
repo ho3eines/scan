@@ -1,0 +1,324 @@
+@page "/"
+@rendermode InteractiveServer
+@using System.Data
+@using Microsoft.AspNetCore.SignalR.Client
+@using ScanSystem.Shared
+@using ScanSystem.Shared.Entities
+@implements IAsyncDisposable
+@inject NavigationManager Navigation
+@inject IScanService ScanService
+
+<PageTitle>pdd Scan | لیست اسکن‌ها</PageTitle>
+
+<HeadContent>
+    <link rel="stylesheet" href="css/index.css" />
+</HeadContent>
+
+<div class="si-app" dir="rtl">
+    <!-- هدر -->
+    <div class="si-header">
+        <div class="si-header-top">
+            <h5 class="si-title">
+                <img class="si-title-logo" src="img/pddscan-logo.png" alt="pdd Scan" />
+                <span class="si-title-text">
+                    <b class="si-title-brand">pdd Scan</b>
+                    <small class="si-title-sub">سیستم مدیریت اسکن مدارک</small>
+                </span>
+            </h5>
+            <span class="si-pill @(isConnected ? "online" : "offline")">
+                <span class="si-dot"></span>
+                @(isConnected ? "سرور متصل" : "سرور قطع")
+            </span>
+        </div>
+    </div>
+
+    <!-- فرم افزودن -->
+    <div class="si-card si-add-card">
+        <div class="si-card-header">
+            <span class="si-card-title"><i class="bi bi-plus-circle-fill"></i> افزودن اسکن جدید</span>
+        </div>
+        <div class="si-card-body">
+            <div class="si-add-form">
+                <div class="si-field">
+                    <label class="si-field-label">اینکویری کد</label>
+                    <input type="text" class="si-input" placeholder="کد اینکویری" @bind="newInquiryCode" />
+                </div>
+                <div class="si-field">
+                    <label class="si-field-label">نام و نام خانوادگی</label>
+                    <input type="text" class="si-input" placeholder="نام کامل" @bind="newFullName" />
+                </div>
+                <div class="si-field">
+                    <label class="si-field-label">سافتور کد</label>
+                    <input type="text" class="si-input" placeholder="کد سافتور" @bind="newSoftwareCode" />
+                </div>
+                <div class="si-field">
+                    <label class="si-field-label">ریلیشن کد</label>
+                    <input type="text" class="si-input" placeholder="کد ریلیشن" @bind="newRelationCode" />
+                </div>
+                <button class="si-btn si-btn-add" @onclick="AddInquiry">
+                    <i class="bi bi-plus-lg"></i> افزودن و اسکن
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- پیام‌ها -->
+    @if (!string.IsNullOrEmpty(message))
+    {
+        <div class="si-alert si-alert-@messageType" role="alert">
+            <i class="bi bi-@(messageType == "success" ? "check-circle-fill" : messageType == "danger" ? "exclamation-triangle-fill" : "info-circle-fill")"></i>
+            <span>@message</span>
+            <button type="button" class="si-alert-close" @onclick="() => message = null">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+    }
+
+    <!-- لیست -->
+    <div class="si-card">
+        <div class="si-card-header">
+            <span class="si-card-title"><i class="bi bi-list-ul"></i> لیست اسکن‌ها</span>
+            <span class="si-count-badge">@(requests?.Rows.Count ?? 0) مورد</span>
+        </div>
+        <div class="si-card-body">
+            @if (requests == null)
+            {
+                <div class="si-empty">
+                    <div class="si-empty-icon">
+                        <div class="spinner-border text-primary" role="status"></div>
+                    </div>
+                    <p>در حال بارگذاری...</p>
+                </div>
+            }
+            else if (requests.Rows.Count == 0)
+            {
+                <div class="si-empty">
+                    <div class="si-empty-icon">
+                        <i class="bi bi-inbox"></i>
+                    </div>
+                    <p>هنوز موردی ثبت نشده است</p>
+                    <small>از فرم بالا یک اسکن جدید اضافه کنید</small>
+                </div>
+            }
+            else
+            {
+                <div class="si-table-wrap">
+                    <table class="si-table">
+                        <thead>
+                            <tr>
+                                <th>اینکویری کد</th>
+                                <th>نام و نام خانوادگی</th>
+                                <th>سافتور کد</th>
+                                <th>ریلیشن کد</th>
+                                <th>وضعیت</th>
+                                <th>تاریخ</th>
+                                <th>تصاویر</th>
+                                <th>عملیات</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (DataRow row in requests.Rows)
+                            {
+                                var inquiryCode = Str(row, "InquiryCode");
+                                var fullName = Str(row, "FullName");
+                                var softwareCode = Str(row, "SoftwareCode");
+                                var relationCode = Str(row, "RelationCode");
+                                var status = Str(row, "Status");
+                                var imageCount = Int(row, "ImageCount");
+                                var createdAt = FormatDate(row, "CreatedAt");
+
+                                <tr class="si-row @(status == ScanStatus.Error ? "si-row-error" : status == ScanStatus.Done ? "si-row-done" : "")">
+                                    <td class="si-cell-code">@inquiryCode</td>
+                                    <td>@fullName</td>
+                                    <td class="si-cell-code">@softwareCode</td>
+                                    <td class="si-cell-code">@relationCode</td>
+                                    <td>
+                                        <span class="si-status si-status-@status.ToLower()">
+                                            <i class="bi bi-@(GetStatusIcon(status))"></i>
+                                            @GetStatusText(status)
+                                        </span>
+                                    </td>
+                                    <td class="si-cell-date">@createdAt</td>
+                                    <td class="si-cell-count">@imageCount</td>
+                                    <td>
+                                        <div class="si-actions">
+                                            <button class="si-btn si-btn-scan" @onclick="() => GoToScan(relationCode, inquiryCode, softwareCode, fullName)" title="اسکن">
+                                                <i class="bi bi-camera-fill"></i> اسکن
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private HubConnection? hub;
+
+    // داده‌ها
+    private DataTable? requests;
+
+    // فرم افزودن
+    private string newInquiryCode = string.Empty;
+    private string newFullName = string.Empty;
+    private string newSoftwareCode = string.Empty;
+    private string newRelationCode = string.Empty;
+
+    // پیام‌ها
+    private string? message;
+    private string messageType = "info";
+    private bool isConnected = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRequests();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        await ConnectHub();
+        StateHasChanged();
+    }
+
+    // ───────────────────────── SignalR ─────────────────────────
+
+    private async Task ConnectHub()
+    {
+        hub = new HubConnectionBuilder()
+            .WithUrl(Navigation.ToAbsoluteUri("/scanhub"))
+            .WithAutomaticReconnect()
+            .Build();
+
+        hub.On("RequestsChanged", async () => await InvokeAsync(async () =>
+        {
+            await LoadRequests();
+            StateHasChanged();
+        }));
+
+        hub.On<Guid>("ScanCompleted", async (id) => await InvokeAsync(async () =>
+        {
+            await LoadRequests();
+            StateHasChanged();
+        }));
+
+        hub.On<Guid, string>("StatusChanged", async (id, status) => await InvokeAsync(async () =>
+        {
+            await LoadRequests();
+            StateHasChanged();
+        }));
+
+        hub.Closed += async _ => { isConnected = false; await InvokeAsync(StateHasChanged); };
+        hub.Reconnected += _ => { isConnected = true; return Task.CompletedTask; };
+
+        try
+        {
+            await hub.StartAsync();
+            isConnected = true;
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"خطا در اتصال به سرور: {ex.Message}", "danger");
+        }
+    }
+
+    // ───────────────────────── Data Loading ─────────────────────────
+
+    private async Task LoadRequests()
+    {
+        try
+        {
+            requests = await ScanService.GetRequestsListAsync();
+        }
+        catch (Exception ex)
+        {
+            ShowMessage($"خطا در بارگذاری لیست: {ex.Message}", "danger");
+            requests = new DataTable();
+        }
+    }
+
+    // ───────────────────────── فرم افزودن ─────────────────────────
+
+    private void AddInquiry()
+    {
+        var inqCode = newInquiryCode?.Trim();
+        var name = newFullName?.Trim();
+        var swCode = newSoftwareCode?.Trim();
+        var relCode = newRelationCode?.Trim();
+
+        if (string.IsNullOrWhiteSpace(inqCode))
+        {
+            ShowMessage("اینکویری کد الزامی است.", "danger");
+            return;
+        }
+
+        newInquiryCode = string.Empty;
+        newFullName = string.Empty;
+        newSoftwareCode = string.Empty;
+        newRelationCode = string.Empty;
+
+        GoToScan(relCode, inqCode, swCode, name);
+    }
+
+    // ───────────────────────── Navigation ─────────────────────────
+
+    private void GoToScan(string? relationCode, string? inquiryCode, string? softwareCode, string? fullName)
+    {
+        var parameters = new List<string>();
+        if (!string.IsNullOrWhiteSpace(relationCode)) parameters.Add($"relationCode={Uri.EscapeDataString(relationCode)}");
+        if (!string.IsNullOrWhiteSpace(inquiryCode)) parameters.Add($"inquiryCode={Uri.EscapeDataString(inquiryCode)}");
+        if (!string.IsNullOrWhiteSpace(softwareCode)) parameters.Add($"softwareCode={Uri.EscapeDataString(softwareCode)}");
+        if (!string.IsNullOrWhiteSpace(fullName)) parameters.Add($"fullName={Uri.EscapeDataString(fullName)}");
+
+        var url = "/scan";
+        if (parameters.Count > 0)
+            url += "?" + string.Join("&", parameters);
+
+        Navigation.NavigateTo(url);
+    }
+
+    // ───────────────────────── Helpers ─────────────────────────
+
+    private void ShowMessage(string text, string type)
+    {
+        message = text;
+        messageType = type;
+    }
+
+    private static string Str(DataRow r, string col)
+        => r.IsNull(col) ? string.Empty : r[col]?.ToString() ?? string.Empty;
+
+    private static int Int(DataRow r, string col)
+        => r.IsNull(col) ? 0 : Convert.ToInt32(r[col]);
+
+    private static string FormatDate(DataRow r, string col)
+        => r.IsNull(col) ? "—" : Convert.ToDateTime(r[col]).ToString("yyyy/MM/dd HH:mm");
+
+    private static string GetStatusIcon(string status) => status switch
+    {
+        ScanStatus.Pending => "clock-fill",
+        ScanStatus.Processing => "arrow-repeat",
+        ScanStatus.Done => "check-circle-fill",
+        ScanStatus.Error => "exclamation-triangle-fill",
+        _ => "question-circle-fill"
+    };
+
+    private static string GetStatusText(string status) => status switch
+    {
+        ScanStatus.Pending => "در انتظار",
+        ScanStatus.Processing => "در حال پردازش",
+        ScanStatus.Done => "انجام شد",
+        ScanStatus.Error => "خطا",
+        _ => status
+    };
+
+    public async ValueTask DisposeAsync()
+    {
+        if (hub is not null) await hub.DisposeAsync();
+    }
+}

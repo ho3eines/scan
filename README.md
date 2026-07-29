@@ -1,23 +1,9 @@
 # ScanSystem — سیستم Enterprise اسکن مدارک
 
 سیستم داخلی اسکن مدارک با معماری **Blazor Server + SignalR + WPF Agent + SQL Server (Dapper)**.
+
 هر ایستگاه کاری یک Agent سبک اجرا می‌کند که با نام ماشین (Machine Name) شناسایی می‌شود،
 درخواست‌های اسکن را لحظه‌ای دریافت کرده و صفحات را به‌محض اسکن به سرور Stream می‌کند.
-
-صفحه اسکن می‌تواند از طریق Query String سه کد زمینه‌ای دریافت کند:
-`relationCode`، `inquiryCode` و `softwareCode`. این کدها همراه درخواست اسکن ثبت می‌شوند،
-هنگام Insert تصویر به رکورد `Images` منتقل می‌شوند، و در زمان لود گالری همان صفحه به‌عنوان فیلتر در نظر گرفته می‌شوند.
-نمونه:
-
-```text
-/scan?relationCode=REL-100&inquiryCode=INQ-200&softwareCode=SW-300
-```
-
-> **طراحی داده لیست‌ها (طبق سفارش):** کوئری‌های لیست‌های جدولی (درخواست‌های اسکن و Agentها)
-> با Dapper به‌صورت `System.Data.DataTable`/`DataRow` خوانده می‌شوند (`ExecuteReader` + `DataTable.Load`)
-> و جدول‌ها در Blazor با پیمایش `DataRow`ها ساخته می‌شوند.
-> Paging/Sorting/Filtering کاملاً سمت سرور و در T-SQL انجام می‌شود — بدون کتابخانه JS جانبی.
-> تصاویر برخلاف این‌ها به‌صورت گالری کاشی‌ای (گرافیکی) نمایش داده می‌شوند.
 
 ```
 Blazor Server (UI + API)
@@ -30,26 +16,68 @@ Agent (WPF)    SQL Server
  Scanner       Images + Data (VARBINARY)
 ```
 
+---
+
 ## ساختار Solution
 
 | پروژه | نقش |
 |---|---|
-| `src/ScanSystem.Web` | Blazor Server (.NET 8) — صفحات مدیریت Agent، اسکن، گالری، درخواست‌ها + Web API + SignalR Hub |
-| `src/ScanSystem.Agent` | WPF Worker (net8.0-windows) — Tray icon، Auto-Start، صف داخلی، اسکن WIA چندهدفه‌ای/Streaming |
+| `src/ScanSystem.Web` | Blazor Server (.NET 8) — صفحه لیست اسکن‌ها، فرم اسکن، مدیریت Agent + SignalR Hub |
+| `src/ScanSystem.Agent` | WPF Worker (net8.0-windows) — Tray icon، Auto-Start، صف داخلی، اسکن WIA چندصفحه‌ای/Streaming |
 | `src/ScanSystem.Shared` | لایه مشترک — Entityها، Repositoryهای Dapper، ساخت Thumbnail |
 | `database/01_CreateDatabase.sql` | اسکریپت کامل T-SQL ساخت دیتابیس و جداول |
 
-> فایل `ScanSystem.slnx` (VS 2022 17.13+) و `ScanSystem.sln` (کلاسیک) هر دو موجودند.
+---
+
+## جریان کار سیستم
+
+### صفحه لیست (`/`)
+- نمایش تمام درخواست‌های اسکن در جدول با ستون‌ها:
+  **اینکویری کد** | **نام و نام خانوادگی** | **سافتور کد** | **ریلیشن کد** | **وضعیت** | **تاریخ** | **تعداد تصاویر**
+- فرم افزودن اسکن جدید در بالای صفحه
+- دکمه «اسکن» روی هر ردیف → انتقال به صفحه اسکن با اطلاعات آن ردیف
+- بروزرسانی لحظه‌ای با SignalR (وقتی Agent اسکن انجام می‌دهد، لیست بروز می‌شود)
+
+### صفحه اسکن (`/scan`)
+- دریافت اطلاعات از طریق Query String:
+  ```text
+  /scan?relationCode=REL-100&inquiryCode=INQ-200&softwareCode=SW-300&fullName=علی+رضایی
+  ```
+- نمایش اطلاعات زمینه (اینکویری، نام، سافتور، ریلیشن) با آیکون
+- انتخاب دستگاه اسکنر (Agent) از لیست Agentهای آنلاین
+- دکمه شروع اسکن → ارسال درخواست به Agent انتخاب‌شده
+- ذخیره تصویر با کدهای صحیح (از جدول ScanRequests کپی می‌شود)
+
+### Agent (WPF)
+- بدون دکمه اسکن دستی — تمام اسکن‌ها از طریق وب ارسال می‌شوند
+- دریافت درخواست از Hub فقط اگر `machineName` با نام ماشین Agent مطابقت داشته باشد
+- صف داخلی (`Channel<ScanJob>`) برای سریال‌سازی درخواست‌ها
+- اسکن چندصفحه‌ای تا پایان Feeder + ارسال هر صفحه به‌محض آماده شدن
+
+---
+
+## پشتیبانی از چند Agent همزمان
+
+سیستم کاملاً از سناریوی **چند Agent + چند کاربر همزمان** پشتیبانی می‌کند:
+
+| مکانیزم | توضیح |
+|---|---|
+| `ConcurrentDictionary` | نگاشت Agent ↔ ConnectionId کاملاً thread-safe |
+| `Clients.Client(connectionId)` | هر درخواست اسکن فقط به Agent خاص ارسال می‌شود (unicast) |
+| `string.Equals(machineName)` | Agent فقط درخواست‌هایی را قبول می‌کند که نام ماشینش مطابقت داشته باشد |
+| `Channel<ScanJob>` | صف داخلی Agent — درخواست‌ها به ترتیب و بدون تداخل پردازش می‌شوند |
+| `Guid.NewGuid()` | هر درخواست و تصویر ID منحصربه‌فرد دارد — بدون تداخل |
+| کپی کدها از ScanRequests | تصاویر کدهای مربوط به درخواست خودشان را دریافت می‌کنند |
+
+**مثال:** کاربر A روی Agent-1 اسکن با `REL-A` می‌زند، کاربر B همزمان روی Agent-2 اسکن با `REL-B` می‌زند — هر تصویر دقیقاً با کد خودش ذخیره می‌شود.
 
 ---
 
 ## پیش‌نیازها
 
 - **.NET 8 SDK**
-- **SQL Server** (محلی یا شبکه) + دسترسی `sa` یا کاربر با حق CREATE/INSERT/UPDATE/DELETE
-- **Windows** برای اجرای Agent و ساخت Thumbnail (وابستگی `System.Drawing.Common`)
-
----
+- **SQL Server** (محلی یا شبکه)
+- **Windows** برای اجرای Agent
 
 ## ۱) راه‌اندازی دیتابیس
 
@@ -57,11 +85,14 @@ Agent (WPF)    SQL Server
 sqlcmd -S . -E -i database\01_CreateDatabase.sql
 ```
 
-یا اسکریپت `database/01_CreateDatabase.sql` را در SSMS اجرا کنید.
 اسکریپت Idempotent است و دیتابیس **PddDocuments** را با ۵ جدول می‌سازد:
 `Agents`, `ScanRequests`, `Images`, `ImageGroups`, `ImageGroupItems`.
-در جدول‌های `ScanRequests` و `Images` سه ستون زمینه‌ای `RelationCode`، `InquiryCode` و `SoftwareCode`
-به‌صورت nullable وجود دارد. اگر دیتابیس از قبل ساخته شده باشد، همین اسکریپت ستون‌های جدید و ایندکس‌های لازم را با `ALTER TABLE`/`sys.indexes` اضافه می‌کند.
+
+ستون‌های اضافه‌شده در جدول `ScanRequests`:
+- `RelationCode` NVARCHAR(100) NULL
+- `InquiryCode` NVARCHAR(100) NULL
+- `SoftwareCode` NVARCHAR(100) NULL
+- `FullName` NVARCHAR(200) NULL
 
 ## ۲) تنظیم Connection String
 
@@ -80,20 +111,14 @@ cd src\ScanSystem.Web
 dotnet run
 ```
 
-سرور به‌صورت پیش‌فرض روی **http://localhost:5002** اجرا می‌شود (قابل تغییر در `Properties/launchSettings.json`).
+سرور به‌صورت پیش‌فرض روی **http://localhost:5002** اجرا می‌شود.
 
 صفحات:
 
 | مسیر | کاربرد |
 |---|---|
-| `/` | داشبورد |
-| `/scan` | شروع اسکن + گالری اسکن‌ها؛ پشتیبانی از `relationCode`، `inquiryCode` و `softwareCode` در Query String |
-| `/requests` | لیست درخواست‌ها — جدول Server-side با Paging/Sorting/Filtering در T-SQL (خروجی `System.Data.DataTable`) |
-| `/gallery` | گالری Lazy Load، انتخاب چندگانه، ZIP، چرخش/جایگزینی/حذف، گروه‌بندی Drag & Drop |
-| `/agents` | مدیریت Agentها (آنلاین/آفلاین + دانلود + غیرفعال‌سازی) |
-| `/setup-guide` | راهنمای نصب Agent |
-
-> در صفحه `/scan` لیست درخواست‌های اسکن به کاربر نمایش داده نمی‌شود؛ وضعیت داخلی همچنان از طریق SignalR و دیتابیس مدیریت می‌شود.
+| `/` | لیست اسکن‌ها + فرم افزودن جدید |
+| `/scan` | فرم اسکن — دریافت اطلاعات از Query String |
 
 ## ۴) اجرای Agent (کلاینت)
 
@@ -105,97 +130,58 @@ dotnet run
 ```
 
 - Agent با **Machine Name** ثبت می‌شود و آیکون آن در **Tray** قرار می‌گیرد.
-- «شروع خودکار با ویندوز» از منوی Tray یا `"AutoStart": true` در `agentsettings.json`.
-- شروع مستقیم در Tray: `ScanSystem.Agent.exe --tray`
-- از پنجره Agent یا منوی Tray → **«تنظیمات اسکنر»**: لیست دستگاه‌های WIA شناسایی‌شده روی سیستم
-  نمایش داده می‌شود و می‌توانید مشخص کنید Agent با کدام اسکنر کار کند (`SelectedScannerId`).
-- تنظیمات در `agentsettings.json` کنار exe:
-
-```json
-{
-  "ServerUrl": "http://SERVER-IP:5002/scanhub",
-  "AutoConnect": true,
-  "StartMinimized": false,
-  "AutoStart": false,
-  "MaxPages": 50,
-  "SelectedScannerId": "",
-  "UsePlaceholderWhenNoScanner": false,
-  "SkipBlankPages": false
-}
-```
-
-- **رفتار پیش‌فرض جدید:** اگر اسکنری (یا اسکنر انتخاب‌شده) در دسترس نباشد، Agent دیگر به‌صورت خودکار
-  تصویر تستی/شبیه‌سازی‌شده نمی‌سازد. به‌جای آن به سرور خطای **«اسکنر تنظیم نیست»** گزارش می‌کند و
-  در صفحه `/scan` یک بنر هشدار نمایش داده می‌شود.
-  با فعال کردن تیک **«در صورت نبود اسکنر، تصویر آزمایشی (Placeholder) بسازد»** در «تنظیمات اسکنر»
-  (`UsePlaceholderWhenNoScanner: true`) می‌توانید رفتار قدیمی (ساخت صفحه تستی) را دوباره فعال کنید.
-- با فعال کردن تیک **«اگر صفحه اسکن‌شده کاملاً سفید/خالی بود، به سرور ارسال نشود»**
-  (`SkipBlankPages: true`) صفحاتی که کاملاً یکدست/سفید تشخیص داده شوند (مثلاً برگ خالی در ADF)
-  اصلاً به سرور آپلود نمی‌شوند.
-- اسکن چندصفحه‌ای (ADF): حلقه تا پایان Feeder؛ هر صفحه بلافاصله با `UploadPage` ارسال و در پایان `CompleteScan` صدا زده می‌شود.
-
+- از منوی Tray → **تنظیمات اسکنر**: انتخاب دستگاه WIA
+- تنظیمات در `agentsettings.json`:
+  ```json
+  {
+    "ServerUrl": "http://SERVER-IP:5002/scanhub",
+    "AutoConnect": true,
+    "AutoStart": false,
+    "MaxPages": 50,
+    "SelectedScannerId": "",
+    "UsePlaceholderWhenNoScanner": false,
+    "SkipBlankPages": false
+  }
+  ```
+- اگر اسکنر تنظیم نباشد، Agent خطای «اسکنر تنظیم نیست» گزارش می‌کند.
 
 ## ۵) توزیع Agent
 
-### الف) ZIP
 ```bat
 dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x64 --self-contained false -o publish\agent
 ```
-محتوای `publish\agent` را با نام **ScanSystem.Agent.zip** فشرده کنید و در پوشه
-`src/ScanSystem.Web/downloads/` کنار فایل‌های اجرایی وب قرار دهید.
-دکمه «دانلود» در صفحه `/agents` از endpoint `GET /api/agent/download.zip` سرو می‌شود.
-
-### ب) ClickOnce
-پروفایل آماده: `src/ScanSystem.Agent/Properties/PublishProfiles/ClickOnce.pubxml`
-(در Visual Studio: Publish → پروفایل ClickOnce). خروجی در `publish/client` قرار می‌گیرد؛
-`InstallUrl` را مطابق سرور خود تنظیم کنید. آپدیت‌های بعدی خودکار است.
 
 ---
-
-## API (مهم‌ترین endpointها)
-
-| متد | مسیر | توضیح |
-|---|---|---|
-| GET | `/api/images?skip=0&take=20&groupId=&machineName=&relationCode=&inquiryCode=&softwareCode=` | گالری (Lazy Load — OFFSET/FETCH) با امکان فیلتر بر اساس کدهای زمینه‌ای |
-| GET | `/api/images/{id}` | تصویر اصلی |
-| GET | `/api/images/thumb/{id}` | Thumbnail |
-| POST | `/api/images/{id}/rotate` | چرخش ۹۰/۱۸۰/۲۷۰ — body: `{"angle":90}` |
-| POST | `/api/images/{id}/replace` | جایگزینی تصویر (multipart، فیلد `file`) |
-| DELETE | `/api/images/{id}` | حذف تصویر |
-| POST | `/api/images/assignGroup` | تخصیص تصویر به گروه |
-| POST | `/api/zip` | دانلود دسته‌ای ZIP — body: `{"ids":["..."]}` |
-| GET | `/api/agents` / DELETE `/api/agents/{id}` | لیست/حذف Agent |
-| GET | `/api/agent/download.zip` | دانلود ZIP برنامه Agent |
 
 ## قرارداد SignalR Hub (`/scanhub`)
 
 | جهت | متد | آرگومان‌ها |
 |---|---|---|
 | Client→Server | `RegisterAgent` | `machineName` |
-| Client→Server | `RequestScan` | `machineName, isMultiPage` (برای سازگاری با Agent/کلاینت قدیمی؛ بدون کد زمینه‌ای) |
-| Client→Server | `RequestScanWithContext` | `machineName, isMultiPage, relationCode, inquiryCode, softwareCode` |
+| Client→Server | `RequestScanWithContext` | `machineName, isMultiPage, relationCode, inquiryCode, softwareCode, fullName` |
 | Client→Server | `StartProcessing` / `CompleteScan` / `ReportError` | `requestId[, message]` |
 | Client→Server | `UploadPage` | `requestId, fileName, contentType, data, pageNumber` |
-| Server→All | `AgentStatusChanged`, `AgentsChanged`, `RequestsChanged`, `GalleryChanged` | — |
-| Server→All | `PageUploaded` | `requestId, imageId, pageNumber` |
-| Server→All | `ScanError` | `requestId, message` — از جمله پیام «اسکنر تنظیم نیست.» وقتی Agent دستگاهی پیدا نکند |
+| Server→All | `AgentStatusChanged`, `AgentsChanged`, `RequestsChanged` | — |
+| Server→All | `ScanCompleted`, `StatusChanged`, `ScanError` | `requestId[, message]` |
 | Server→Agent | `ScanRequested` | `machineName, requestId, isMultiPage` |
+
+---
 
 ## نکات فنی
 
 - **بدون EF Core** — همه دسترسی‌ها با Dapper و کوئری‌های Parametrized.
-- تصاویر به‌صورت `VARBINARY(MAX)` + Thumbnail خودکار (JPEG 240×320) ذخیره می‌شوند.
-- کدهای `RelationCode`، `InquiryCode` و `SoftwareCode` ابتدا روی `ScanRequests` ذخیره می‌شوند و هنگام `UploadPage`/Insert تصویر در `Images` نیز ثبت می‌شوند؛ لود گالری می‌تواند دقیقاً بر اساس همین کدها فیلتر شود.
-- `ConnectionId`های SignalR در حافظه (`AgentConnectionRegistry`) نگه‌داری می‌شوند؛ قطع Agent → `IsOnline=false` خودکار.
-- حداکثر حجم آپلود: 100MB (Kestrel + FormOptions) — قابل تغییر در `Program.cs`.
-- صفحه `/scan` از یک لایوت مینیمال (`BlankLayout`) و فایل CSS مستقل (`wwwroot/css/scan.css`، همه کلاس‌ها با پیشوند `sa-`) استفاده می‌کند و هیچ استایلی روی `html`/`body` اعمال نمی‌کند؛ به همین دلیل می‌توان آن را داخل یک پروژه دیگر (مثلاً به‌صورت iframe/صفحه جاسازی‌شده) بدون تداخل استایل استفاده کرد.
-- **بدون وابستگی به اینترنت/CDN:** فونت آیکون‌ها (Bootstrap Icons 1.11.3) به‌صورت محلی در `wwwroot/bootstrap-icons/` قرار دارد و همراه خود اپ سرو می‌شود؛ در شبکه‌های داخلی بدون اینترنت هم آیکون‌ها درست نمایش داده می‌شوند.
-- **برند و آیکون:** نام نمایشی برند **pdd Scan** است (کپشن پنجره‌های Agent، متن Tooltip آیکون Tray، عنوان صفحه و هدر صفحه اسکن). فایل‌های آیکون (زمینهٔ ترنسپرنت + روبان قرمز «pdd Scan»):
-  - وب: `src/ScanSystem.Web/wwwroot/favicon.png` و `src/ScanSystem.Web/wwwroot/img/pddscan-logo.png`
-  - ایجنت: `src/ScanSystem.Agent/appicon.ico` (چندسایزی برای Tray/Titlebar/Explorer) و `src/ScanSystem.Agent/logo.png`
-- نوار خطای Blazor (`#blazor-error-ui`) فقط هنگام خطای واقعی نمایش داده می‌شود؛ استایل پنهان‌سازی آن هم در Scoped CSS (که باعث تولید `ScanSystem.Web.styles.css` می‌شود) و هم به‌صورت پشتیبان در `wwwroot/app.css` تعریف شده است.
+- تصاویر به‌صورت `VARBINARY(MAX)` + Thumbnail خودکار ذخیره می‌شوند.
+- کدهای `RelationCode`، `InquiryCode`، `SoftwareCode` و `FullName` روی `ScanRequests` ذخیره می‌شوند و هنگام Insert تصویر، سه کد اول به `Images` کپی می‌شوند.
+- `AgentConnectionRegistry` از `ConcurrentDictionary` استفاده می‌کند — کاملاً thread-safe.
+- Agent از `Channel<ScanJob>` برای سریال‌سازی درخواست‌ها استفاده می‌کند.
+- حداکثر حجم آپلود: 100MB (Kestrel + FormOptions).
+- صفحه `/scan` از `BlankLayout` و CSS مستقل (`css/scan.css`، پیشوند `sa-`) استفاده می‌کند.
+- صفحه `/` از `MainLayout` و CSS مستقل (`css/index.css`، پیشوند `si-`) استفاده می‌کند.
+- فونت آیکون‌ها (Bootstrap Icons) به‌صورت محلی سرو می‌شود — بدون نیاز به اینترنت.
+- نام برند: **pdd Scan**
 
-## فازهای بعدی (اختیاری طبق سفارش)
+---
+
+## فازهای بعدی (اختیاری)
 
 Retry خودکار، فشرده‌سازی تصاویر، خروجی PDF، واترمارک، OCR، Audit Log، کنترل دسترسی مبتنی بر نقش.
-

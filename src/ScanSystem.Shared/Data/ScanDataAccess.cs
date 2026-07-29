@@ -61,7 +61,7 @@ public class ScanDataAccess
 
     // ───────────────────────── ScanRequests ─────────────────────────
 
-    public async Task<Guid> CreateRequestAsync(Guid agentId, bool isMultiPage, string? relationCode, string? inquiryCode, string? softwareCode)
+    public async Task<Guid> CreateRequestAsync(Guid agentId, bool isMultiPage, string? relationCode, string? inquiryCode, string? softwareCode, string? fullName = null)
     {
         var id = Guid.NewGuid();
         await ExecuteAsync(ScanSql.RequestsCreate, new
@@ -72,7 +72,8 @@ public class ScanDataAccess
             IsMultiPage = isMultiPage,
             RelationCode = NormalizeCode(relationCode),
             InquiryCode = NormalizeCode(inquiryCode),
-            SoftwareCode = NormalizeCode(softwareCode)
+            SoftwareCode = NormalizeCode(softwareCode),
+            FullName = NormalizeString(fullName)
         });
         return id;
     }
@@ -91,6 +92,9 @@ public class ScanDataAccess
 
     public async Task<DataTable> GetRecentRequestsAsync(int take)
         => await QueryDataTableAsync(ScanSql.RequestsGetRecent, new { Take = take <= 0 ? 50 : take });
+
+    public async Task<DataTable> GetRequestsListAsync()
+        => await QueryDataTableAsync(ScanSql.RequestsGetList);
 
     // ───────────────────────── Images ─────────────────────────
 
@@ -200,6 +204,9 @@ public class ScanDataAccess
 
     private static string? NormalizeCode(string? code)
         => string.IsNullOrWhiteSpace(code) ? null : code.Trim();
+
+    private static string? NormalizeString(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static void AddCodeFilter(List<string> whereParts, DynamicParameters parameters, string columnName, string? value)
     {

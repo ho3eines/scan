@@ -46,9 +46,9 @@ public static class ScanSql
 
     // ───────────────────────── ScanRequests ─────────────────────────
     public const string RequestsCreate = @"
-        INSERT INTO dbo.ScanRequests (Id, AgentId, Status, IsMultiPage, RelationCode, InquiryCode, SoftwareCode, CreatedAt)
+        INSERT INTO dbo.ScanRequests (Id, AgentId, Status, IsMultiPage, RelationCode, InquiryCode, SoftwareCode, FullName, CreatedAt)
         OUTPUT inserted.Id
-        VALUES (@Id, @AgentId, @Status, @IsMultiPage, @RelationCode, @InquiryCode, @SoftwareCode, SYSDATETIME());";
+        VALUES (@Id, @AgentId, @Status, @IsMultiPage, @RelationCode, @InquiryCode, @SoftwareCode, @FullName, SYSDATETIME());";
 
     public const string RequestsSetStatus = @"
         UPDATE dbo.ScanRequests
@@ -71,10 +71,16 @@ public static class ScanSql
     public const string RequestsGetRecent = @"
         SELECT TOP (@Take)
                r.Id, r.AgentId, a.MachineName,
-               r.Status, r.IsMultiPage, r.RelationCode, r.InquiryCode, r.SoftwareCode, r.CreatedAt, r.CompletedAt,
+               r.Status, r.IsMultiPage, r.RelationCode, r.InquiryCode, r.SoftwareCode, r.FullName, r.CreatedAt, r.CompletedAt,
                ImageCount = (SELECT COUNT(*) FROM dbo.Images i WHERE i.RequestId = r.Id)
         FROM dbo.ScanRequests r
         LEFT JOIN dbo.Agents a ON a.Id = r.AgentId
+        ORDER BY r.CreatedAt DESC;";
+
+    public const string RequestsGetList = @"
+        SELECT r.Id, r.InquiryCode, r.FullName, r.SoftwareCode, r.RelationCode, r.Status, r.CreatedAt,
+               ImageCount = (SELECT COUNT(*) FROM dbo.Images i WHERE i.RequestId = r.Id)
+        FROM dbo.ScanRequests r
         ORDER BY r.CreatedAt DESC;";
 
     // ───────────────────────── Images ─────────────────────────

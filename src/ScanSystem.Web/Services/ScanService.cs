@@ -78,7 +78,7 @@ public class ScanService : IScanService
 
     // ───────────────────────── درخواست‌های اسکن ─────────────────────────
 
-    public async Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage, string? relationCode, string? inquiryCode, string? softwareCode)
+    public async Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage, string? relationCode, string? inquiryCode, string? softwareCode, string? fullName = null)
     {
         if (string.IsNullOrWhiteSpace(machineName)) return Guid.Empty;
         machineName = machineName.Trim();
@@ -91,7 +91,7 @@ public class ScanService : IScanService
         }
         if (agent is null) return Guid.Empty;
 
-        return await _db.CreateRequestAsync((Guid)agent["Id"], isMultiPage, relationCode, inquiryCode, softwareCode);
+        return await _db.CreateRequestAsync((Guid)agent["Id"], isMultiPage, relationCode, inquiryCode, softwareCode, fullName);
     }
 
     public async Task SetProcessingAsync(Guid id) => await _db.SetRequestStatusAsync(id, ScanStatus.Processing);
@@ -107,6 +107,9 @@ public class ScanService : IScanService
 
     public async Task<DataTable> GetRecentRequestsDataTableAsync(int take)
         => await _db.GetRecentRequestsAsync(take);
+
+    public async Task<DataTable> GetRequestsListAsync()
+        => await _db.GetRequestsListAsync();
 
     // ───────────────────────── تصاویر / گالری ─────────────────────────
 
