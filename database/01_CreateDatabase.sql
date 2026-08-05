@@ -170,23 +170,39 @@ GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ScanRequestImages') AND name = N'IX_ScanRequestImages_RequestId')
     CREATE INDEX IX_ScanRequestImages_RequestId ON PDDImage.ScanRequestImages(RequestId);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ScanRequestImages') AND name = N'IX_ScanRequestImages_ImageId')
+    CREATE INDEX IX_ScanRequestImages_ImageId ON PDDImage.ScanRequestImages(ImageId);
 GO
 
 PRINT N'PDDImage schema created successfully.';
 GO
 
 /* ════════════════════════════════════════════════════════════════════════
-   ایندکس‌های پیشنهادی برای گالری (اختیاری — فقط در صورت نیاز به سرعت بیشتر)
+   ایندکس‌های گالری روی جدول اصلی عکس (PDDImage.ImagesTable)
 
-   چون جدول ImagesTable جدول پرحجم پروژه اصلی است، این ایندکس‌ها به کوئری‌های
-   گالری (فیلتر ISDELETED و مرتب‌سازی بر اساس Id) کمک می‌کنند:
+   این ایندکس‌ها برای کوئری‌های گالری (فیلتر ISDELETED + کدها + مرتب‌سازی Id)
+   ضروری هستند؛ بدون آن‌ها هر بارگذاری گالری روی جدول پرحجم، Full Scan می‌شود.
+   در صورت وجود ایندکس مشابه از طرف پروژه اصلی، دستور مربوطه را حذف کنید.
 
-   IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ImagesTable') AND name = N'IX_ImagesTable_Gallery')
-       CREATE INDEX IX_ImagesTable_Gallery ON PDDImage.ImagesTable(ISDELETED, ImageGroupID, SoftwareCode, PicType, RelationCode, UserCode, Id DESC);
-
-   IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ImagesTable') AND name = N'IX_ImagesTable_ISDELETED_Id')
-       CREATE INDEX IX_ImagesTable_ISDELETED_Id ON PDDImage.ImagesTable(ISDELETED, Id DESC);
+   نکته: چون جدول پرحجم است، هر ایندکس اضافی هزینه Insert دارد؛
+   این سه ایندکس حداقل لازم برای گالری هستند.
    ════════════════════════════════════════════════════════════════════════ */
+
+-- فیلتر گالری با کدها (SoftwareCode + PicType + RelationCode) + مرتب‌سازی Id نزولی
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ImagesTable') AND name = N'IX_ImagesTable_Gallery')
+    CREATE INDEX IX_ImagesTable_Gallery
+        ON PDDImage.ImagesTable(ISDELETED, SoftwareCode, PicType, RelationCode, Id DESC);
+
+-- گالری بدون فیلتر کد (همه تصاویر) + مرتب‌سازی Id نزولی
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ImagesTable') AND name = N'IX_ImagesTable_ISDELETED_Id')
+    CREATE INDEX IX_ImagesTable_ISDELETED_Id
+        ON PDDImage.ImagesTable(ISDELETED, Id DESC);
+
+-- فیلتر گروه (ImageGroupID) + مرتب‌سازی Id نزولی
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ImagesTable') AND name = N'IX_ImagesTable_Group')
+    CREATE INDEX IX_ImagesTable_Group
+        ON PDDImage.ImagesTable(ISDELETED, ImageGroupID, Id DESC);
+GO
 
 /* ─────────────────────────── پاک‌سازی جداول قدیمی (اختیاری) ───────────────────────────
    اگر نسخه قبلی سیستم با جداول dbo.Agents / dbo.ScanRequests / dbo.Images /

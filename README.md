@@ -194,6 +194,12 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 ## نکات فنی
 
 - **بدون EF Core** — همه دسترسی‌ها با Dapper و کوئری‌های Parametrized.
+- همه کوئری‌های SELECT از `WITH (NOLOCK)` استفاده می‌کنند (سیستم اسکن/نمایش — Dirty Read قابل قبول است و قفل‌گذاری روی جدول پرحجم اصلی حذف می‌شود).
+- کوئری‌های گالری (WHERE پویا) `OPTION (RECOMPILE)` دارند تا برای هر ترکیب فیلتر پلن بهینه ساخته شود.
+- ایندکس‌های گالری روی `PDDImage.ImagesTable` در `01_CreateDatabase.sql` تعریف شده‌اند:
+  `IX_ImagesTable_Gallery (ISDELETED, SoftwareCode, PicType, RelationCode, Id DESC)`،
+  `IX_ImagesTable_ISDELETED_Id (ISDELETED, Id DESC)` و `IX_ImagesTable_Group (ISDELETED, ImageGroupID, Id DESC)`.
+- ذخیره هر صفحه (تصویر + Thumbnail + ارتباط درخواست) در **یک تراکنش** انجام می‌شود — یا همه ثبت می‌شوند یا هیچ‌کدام.
 - تصاویر به‌صورت `VARBINARY(MAX)` در `PDDImage.ImagesTable.ImageField` و Thumbnail خودکار در جدول جداگانه `PDDImage.ImageThumbnails` ذخیره می‌شوند.
 - تاریخ (`Date`) و ساعت (`ScanTime`) به‌صورت **شمسی** (مثلاً `1404/05/14` و `14:35`) ذخیره می‌شوند.
 - کدهای `SoftwareCode`، `PicType`، `RelationCode` و `UserCode` روی `ScanRequests` ذخیره می‌شوند و هنگام Insert تصویر به `ImagesTable` کپی می‌شوند.

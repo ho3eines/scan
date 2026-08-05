@@ -110,6 +110,7 @@ public class ScanDataAccess
     /// <summary>
     /// ذخیره یک صفحه اسکن در PDDImage.ImagesTable.
     /// فایل اصلی در ImageField و Thumbnail در PDDImage.ImageThumbnails ذخیره می‌شود.
+    /// هر سه درج (تصویر + Thumbnail + ارتباط درخواست) در یک تراکنش انجام می‌شوند.
     /// </summary>
     public async Task<decimal> SaveImageAsync(
         Guid requestId,
@@ -122,40 +123,59 @@ public class ScanDataAccess
         var fileType = ResolveFileType(fileName, contentType);
         decimal? fileSizeKb = data.Length > 0 ? Math.Round(data.Length / 1024m, 0) : null;
 
-        var id = await ExecuteScalarAsync<decimal?>(
-            ScanSql.ImagesAdd,
-            new
+        using var conn = _factory.CreateConnection();
+        await conn.OpenAsync();
+        using var tx = conn.BeginTransaction();
+        try
+        {
+            var id = await conn.ExecuteScalarAsync<decimal?>(
+                ScanSql.ImagesAdd,
+                new
+                {
+                    RequestId = requestId,
+                    Data = data,
+                    FileName = NormalizeFileName(fileName, pageNumber),
+                    FileType = fileType,
+                    Date = PersianDate.Today(),
+                    ScanTime = PersianDate.NowTime(),
+                    FileSizeKB = fileSizeKb
+                },
+                tx);
+
+            if (id is null || id.Value == 0)
             {
+                tx.Rollback();
+                return 0;
+            }
+
+            if (thumbnail is { Length: > 0 })
+            {
+                await conn.ExecuteAsync(ScanSql.ThumbnailsAdd, new
+                {
+                    ImageId = id.Value,
+                    Thumbnail = thumbnail,
+                    ThumbSizeKB = Math.Round(thumbnail.Length / 1024m, 0)
+                }, tx);
+            }
+
+            await conn.ExecuteAsync(ScanSql.ScanRequestImagesAdd, new
+            {
+                Id = Guid.NewGuid(),
                 RequestId = requestId,
-                Data = data,
-                FileName = NormalizeFileName(fileName, pageNumber),
-                FileType = fileType,
-                Date = PersianDate.Today(),
-                ScanTime = PersianDate.NowTime(),
-                FileSizeKB = fileSizeKb
-            });
-
-        if (id is null || id.Value == 0) return 0;
-
-        if (thumbnail is { Length: > 0 })
-        {
-            await ExecuteAsync(ScanSql.ThumbnailsAdd, new
-            {
                 ImageId = id.Value,
-                Thumbnail = thumbnail,
-                ThumbSizeKB = Math.Round(thumbnail.Length / 1024m, 0)
-            });
+                PageNumber = pageNumber
+            }, tx);
+
+            tx.Commit();
+            return id.Value;
         }
-
-        await ExecuteAsync(ScanSql.ScanRequestImagesAdd, new
+        catch
         {
-            Id = Guid.NewGuid(),
-            RequestId = requestId,
-            ImageId = id.Value,
-            PageNumber = pageNumber
-        });
-
-        return id.Value;
+            try { tx.Rollback(); } catch { /* نادیده گرفته می‌شود */ }
+            // استثنا به بالا propagates می‌شود تا Hub/Agent خطا را گزارش کند
+            // (به‌جای ثبت بی‌صدا تصویر بدون Thumbnail/ارتباط).
+            throw;
+        }
     }
 
     public async Task<byte[]?> GetImageDataAsync(decimal id)
