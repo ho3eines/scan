@@ -40,20 +40,20 @@
         <div class="si-card-body">
             <div class="si-add-form">
                 <div class="si-field">
-                    <label class="si-field-label">اینکویری کد</label>
-                    <input type="text" class="si-input" placeholder="کد اینکویری" @bind="newInquiryCode" />
-                </div>
-                <div class="si-field">
-                    <label class="si-field-label">نام و نام خانوادگی</label>
-                    <input type="text" class="si-input" placeholder="نام کامل" @bind="newFullName" />
-                </div>
-                <div class="si-field">
                     <label class="si-field-label">سافتور کد</label>
                     <input type="text" class="si-input" placeholder="کد سافتور" @bind="newSoftwareCode" />
                 </div>
                 <div class="si-field">
+                    <label class="si-field-label">نوع تصویر</label>
+                    <input type="text" class="si-input" placeholder="نوع تصویر (PicType)" @bind="newPicType" />
+                </div>
+                <div class="si-field">
                     <label class="si-field-label">ریلیشن کد</label>
                     <input type="text" class="si-input" placeholder="کد ریلیشن" @bind="newRelationCode" />
+                </div>
+                <div class="si-field">
+                    <label class="si-field-label">کد کاربر</label>
+                    <input type="text" class="si-input" placeholder="کد کاربر (UserCode)" @bind="newUserCode" />
                 </div>
                 <button class="si-btn si-btn-add" @onclick="AddInquiry">
                     <i class="bi bi-plus-lg"></i> افزودن و اسکن
@@ -106,10 +106,10 @@
                     <table class="si-table">
                         <thead>
                             <tr>
-                                <th>اینکویری کد</th>
-                                <th>نام و نام خانوادگی</th>
                                 <th>سافتور کد</th>
+                                <th>نوع تصویر</th>
                                 <th>ریلیشن کد</th>
+                                <th>کد کاربر</th>
                                 <th>وضعیت</th>
                                 <th>تاریخ</th>
                                 <th>تصاویر</th>
@@ -119,19 +119,19 @@
                         <tbody>
                             @foreach (DataRow row in requests.Rows)
                             {
-                                var inquiryCode = Str(row, "InquiryCode");
-                                var fullName = Str(row, "FullName");
                                 var softwareCode = Str(row, "SoftwareCode");
+                                var picType = Str(row, "PicType");
                                 var relationCode = Str(row, "RelationCode");
+                                var userCode = Str(row, "UserCode");
                                 var status = Str(row, "Status");
                                 var imageCount = Int(row, "ImageCount");
                                 var createdAt = FormatDate(row, "CreatedAt");
 
                                 <tr class="si-row @(status == ScanStatus.Error ? "si-row-error" : status == ScanStatus.Done ? "si-row-done" : "")">
-                                    <td class="si-cell-code">@inquiryCode</td>
-                                    <td>@fullName</td>
                                     <td class="si-cell-code">@softwareCode</td>
+                                    <td class="si-cell-code">@picType</td>
                                     <td class="si-cell-code">@relationCode</td>
+                                    <td class="si-cell-code">@userCode</td>
                                     <td>
                                         <span class="si-status si-status-@status.ToLower()">
                                             <i class="bi bi-@(GetStatusIcon(status))"></i>
@@ -142,7 +142,7 @@
                                     <td class="si-cell-count">@imageCount</td>
                                     <td>
                                         <div class="si-actions">
-                                            <button class="si-btn si-btn-scan" @onclick="() => GoToScan(relationCode, inquiryCode, softwareCode, fullName)" title="اسکن">
+                                            <button class="si-btn si-btn-scan" @onclick="() => GoToScan(softwareCode, picType, relationCode, userCode)" title="اسکن">
                                                 <i class="bi bi-camera-fill"></i> اسکن
                                             </button>
                                         </div>
@@ -164,10 +164,10 @@
     private DataTable? requests;
 
     // فرم افزودن
-    private string newInquiryCode = string.Empty;
-    private string newFullName = string.Empty;
     private string newSoftwareCode = string.Empty;
+    private string newPicType = string.Empty;
     private string newRelationCode = string.Empty;
+    private string newUserCode = string.Empty;
 
     // پیام‌ها
     private string? message;
@@ -246,41 +246,37 @@
 
     private void AddInquiry()
     {
-        var inqCode = newInquiryCode?.Trim();
-        var name = newFullName?.Trim();
         var swCode = newSoftwareCode?.Trim();
+        var picType = newPicType?.Trim();
         var relCode = newRelationCode?.Trim();
+        var userCode = newUserCode?.Trim();
 
-        if (string.IsNullOrWhiteSpace(inqCode))
+        if (string.IsNullOrWhiteSpace(swCode) && string.IsNullOrWhiteSpace(picType) &&
+            string.IsNullOrWhiteSpace(relCode) && string.IsNullOrWhiteSpace(userCode))
         {
-            ShowMessage("اینکویری کد الزامی است.", "danger");
+            ShowMessage("حداقل یکی از کدها (سافتور / نوع / ریلیشن / کاربر) را وارد کنید.", "danger");
             return;
         }
 
-        newInquiryCode = string.Empty;
-        newFullName = string.Empty;
         newSoftwareCode = string.Empty;
+        newPicType = string.Empty;
         newRelationCode = string.Empty;
+        newUserCode = string.Empty;
 
-        GoToScan(relCode, inqCode, swCode, name);
+        GoToScan(swCode, picType, relCode, userCode);
     }
 
     // ───────────────────────── Navigation ─────────────────────────
 
-    private void GoToScan(string? relationCode, string? inquiryCode, string? softwareCode, string? fullName)
+    private void GoToScan(string? softwareCode, string? picType, string? relationCode, string? userCode)
     {
-        var parameters = new List<string>();
-        if (!string.IsNullOrWhiteSpace(relationCode)) parameters.Add($"relationCode={Uri.EscapeDataString(relationCode)}");
-        if (!string.IsNullOrWhiteSpace(inquiryCode)) parameters.Add($"inquiryCode={Uri.EscapeDataString(inquiryCode)}");
-        if (!string.IsNullOrWhiteSpace(softwareCode)) parameters.Add($"softwareCode={Uri.EscapeDataString(softwareCode)}");
-        if (!string.IsNullOrWhiteSpace(fullName)) parameters.Add($"fullName={Uri.EscapeDataString(fullName)}");
-
-        var url = "/scan";
-        if (parameters.Count > 0)
-            url += "?" + string.Join("&", parameters);
-
+        // مسیر صفحه اسکن: /scan/{SoftwareCode}/{PicType}/{RelationCode}/{UserCode}
+        var url = $"/scan/{Segment(softwareCode)}/{Segment(picType)}/{Segment(relationCode)}/{Segment(userCode)}";
         Navigation.NavigateTo(url);
     }
+
+    private static string Segment(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "-" : Uri.EscapeDataString(value.Trim());
 
     // ───────────────────────── Helpers ─────────────────────────
 
@@ -297,7 +293,7 @@
         => r.IsNull(col) ? 0 : Convert.ToInt32(r[col]);
 
     private static string FormatDate(DataRow r, string col)
-        => r.IsNull(col) ? "—" : Convert.ToDateTime(r[col]).ToString("yyyy/MM/dd HH:mm");
+        => r.IsNull(col) ? "—" : PersianDate.FormatDateTime(Convert.ToDateTime(r[col]));
 
     private static string GetStatusIcon(string status) => status switch
     {

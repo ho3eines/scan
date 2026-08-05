@@ -17,7 +17,7 @@ public interface IScanService
     Task<int> DeleteAgentAsync(Guid id);
 
     // ── درخواست‌های اسکن ──
-    Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage, string? relationCode, string? inquiryCode, string? softwareCode, string? fullName = null);
+    Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage, string? relationCode, string? picType, string? softwareCode, string? userCode);
     Task SetProcessingAsync(Guid id);
     Task SetCompletedAsync(Guid id);
     Task SetErrorAsync(Guid id, string error);
@@ -25,25 +25,24 @@ public interface IScanService
     Task<DataTable> GetRecentRequestsDataTableAsync(int take);
     Task<DataTable> GetRequestsListAsync();
 
-    // ── تصاویر / گالری ──
-    Task<Guid> SavePageAsync(Guid requestId, string fileName, byte[] data, int pageNumber);
+    // ── تصاویر / گالری (PDDImage.ImagesTable) ──
+    Task<decimal> SavePageAsync(Guid requestId, string fileName, string? contentType, byte[] data, int pageNumber);
     Task<(DataTable data, int total)> GetGalleryPageAsync(
         int skip,
         int take,
-        Guid? groupId,
-        string? machineName,
+        decimal? groupId,
         string? relationCode,
-        string? inquiryCode,
+        string? picType,
         string? softwareCode);
-    Task<byte[]?> GetImageDataAsync(Guid id);
-    Task<byte[]?> GetImageThumbnailAsync(Guid id);
-    Task DeleteImageAsync(Guid id);
-    Task UpdateImageAsync(Guid id, byte[] data);
+    Task<byte[]?> GetImageDataAsync(decimal id);
+    Task<byte[]?> GetImageThumbnailAsync(decimal id);
+    Task DeleteImageAsync(decimal id);
+    Task UpdateImageAsync(decimal id, byte[] data);
 
-    // ── گروه‌ها ──
+    // ── گروه‌ها (1 به n: هر تصویر یک گروه) ──
     Task<DataTable> GetGroupsDataTableAsync();
-    Task<Guid> EnsureGroupAsync(string name);
-    Task DeleteGroupAsync(Guid id);
-    Task AssignImageToGroupAsync(Guid imageId, string groupName);
-    Task RemoveImageFromGroupAsync(Guid imageId, Guid groupId);
+    Task<decimal> EnsureGroupAsync(string name, string? softwareCode);
+    Task DeleteGroupAsync(decimal id);
+    Task AssignImageToGroupAsync(decimal imageId, string groupName, string? softwareCode);
+    Task RemoveImageFromGroupAsync(decimal imageId, decimal groupId);
 }

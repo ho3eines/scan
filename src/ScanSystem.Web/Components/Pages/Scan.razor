@@ -1,4 +1,5 @@
 @page "/scan"
+@page "/scan/{SoftwareCode}/{PicType}/{RelationCode}/{UserCode}"
 @rendermode InteractiveServer
 @layout ScanSystem.Web.Components.Layout.BlankLayout
 @using System.Data
@@ -103,21 +104,21 @@
         {
             <div class="sa-context-strip">
                 <span class="sa-context-title"><i class="bi bi-link-45deg"></i> زمینه اسکن</span>
-                @if (!string.IsNullOrEmpty(CurrentInquiryCode))
-                {
-                    <span class="sa-context-chip">اینکویری: <b>@CurrentInquiryCode</b></span>
-                }
-                @if (!string.IsNullOrEmpty(CurrentFullName))
-                {
-                    <span class="sa-context-chip">نام: <b>@CurrentFullName</b></span>
-                }
                 @if (!string.IsNullOrEmpty(CurrentSoftwareCode))
                 {
                     <span class="sa-context-chip">سافتور: <b>@CurrentSoftwareCode</b></span>
                 }
+                @if (!string.IsNullOrEmpty(CurrentPicType))
+                {
+                    <span class="sa-context-chip">نوع: <b>@CurrentPicType</b></span>
+                }
                 @if (!string.IsNullOrEmpty(CurrentRelationCode))
                 {
                     <span class="sa-context-chip">ریلیشن: <b>@CurrentRelationCode</b></span>
+                }
+                @if (!string.IsNullOrEmpty(CurrentUserCode))
+                {
+                    <span class="sa-context-chip">کاربر: <b>@CurrentUserCode</b></span>
                 }
             </div>
         }
@@ -156,26 +157,6 @@
             </div>
             <div class="sa-card-body">
                 <div class="sa-info-grid">
-                    @if (!string.IsNullOrEmpty(CurrentInquiryCode))
-                    {
-                        <div class="sa-info-item">
-                            <div class="sa-info-icon"><i class="bi bi-hash"></i></div>
-                            <div class="sa-info-content">
-                                <span class="sa-info-label">اینکویری کد</span>
-                                <span class="sa-info-value">@CurrentInquiryCode</span>
-                            </div>
-                        </div>
-                    }
-                    @if (!string.IsNullOrEmpty(CurrentFullName))
-                    {
-                        <div class="sa-info-item">
-                            <div class="sa-info-icon"><i class="bi bi-person"></i></div>
-                            <div class="sa-info-content">
-                                <span class="sa-info-label">نام و نام خانوادگی</span>
-                                <span class="sa-info-value">@CurrentFullName</span>
-                            </div>
-                        </div>
-                    }
                     @if (!string.IsNullOrEmpty(CurrentSoftwareCode))
                     {
                         <div class="sa-info-item">
@@ -183,6 +164,16 @@
                             <div class="sa-info-content">
                                 <span class="sa-info-label">سافتور کد</span>
                                 <span class="sa-info-value">@CurrentSoftwareCode</span>
+                            </div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(CurrentPicType))
+                    {
+                        <div class="sa-info-item">
+                            <div class="sa-info-icon"><i class="bi bi-tag"></i></div>
+                            <div class="sa-info-content">
+                                <span class="sa-info-label">نوع تصویر</span>
+                                <span class="sa-info-value">@CurrentPicType</span>
                             </div>
                         </div>
                     }
@@ -196,6 +187,16 @@
                             </div>
                         </div>
                     }
+                    @if (!string.IsNullOrEmpty(CurrentUserCode))
+                    {
+                        <div class="sa-info-item">
+                            <div class="sa-info-icon"><i class="bi bi-person"></i></div>
+                            <div class="sa-info-content">
+                                <span class="sa-info-label">کد کاربر</span>
+                                <span class="sa-info-value">@CurrentUserCode</span>
+                            </div>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
@@ -203,27 +204,20 @@
 
     <!-- گالری تصاویر -->
     <ScanGallery Hub="@hub"
-                 MachineName="@selectedMachine"
-                 RelationCode="@CurrentRelationCode"
-                 InquiryCode="@CurrentInquiryCode"
                  SoftwareCode="@CurrentSoftwareCode"
+                 PicType="@CurrentPicType"
+                 RelationCode="@CurrentRelationCode"
                  OnMessage="@(m => ShowMessage(m.Text, m.Type))" />
 </div>
 
 @code {
     private HubConnection? hub;
 
-    [SupplyParameterFromQuery(Name = "relationCode")]
-    public string? RelationCode { get; set; }
-
-    [SupplyParameterFromQuery(Name = "inquiryCode")]
-    public string? InquiryCode { get; set; }
-
-    [SupplyParameterFromQuery(Name = "softwareCode")]
-    public string? SoftwareCode { get; set; }
-
-    [SupplyParameterFromQuery(Name = "fullName")]
-    public string? FullName { get; set; }
+    // مسیر: /scan/{SoftwareCode}/{PicType}/{RelationCode}/{UserCode}
+    [Parameter] public string? SoftwareCode { get; set; }
+    [Parameter] public string? PicType { get; set; }
+    [Parameter] public string? RelationCode { get; set; }
+    [Parameter] public string? UserCode { get; set; }
 
     // Settings
     private DataTable? agents;
@@ -243,11 +237,11 @@
 
     private bool CanScan => isConnected && !isScanning && !string.IsNullOrEmpty(selectedMachine) && selectedOnline;
 
-    private string? CurrentRelationCode => NormalizeCode(RelationCode);
-    private string? CurrentInquiryCode => NormalizeCode(InquiryCode);
     private string? CurrentSoftwareCode => NormalizeCode(SoftwareCode);
-    private string? CurrentFullName => NormalizeString(FullName);
-    private bool HasScanContext => CurrentRelationCode is not null || CurrentInquiryCode is not null || CurrentSoftwareCode is not null || CurrentFullName is not null;
+    private string? CurrentPicType => NormalizeCode(PicType);
+    private string? CurrentRelationCode => NormalizeCode(RelationCode);
+    private string? CurrentUserCode => NormalizeCode(UserCode);
+    private bool HasScanContext => CurrentSoftwareCode is not null || CurrentPicType is not null || CurrentRelationCode is not null || CurrentUserCode is not null;
 
     private string AlertIcon => messageType switch
     {
@@ -266,7 +260,7 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        // اگر query parameters تغییر کرد، StateHasChanged فراخوانی شود
+        // اگر پارامترهای مسیر تغییر کرد، StateHasChanged فراخوانی شود
         // تا اطلاعات جدید نمایش داده شود
         if (initialized) StateHasChanged();
     }
@@ -435,7 +429,7 @@
         try
         {
             await hub.InvokeAsync("RequestScanWithContext", selectedMachine, multiPage,
-                CurrentRelationCode, CurrentInquiryCode, CurrentSoftwareCode, CurrentFullName);
+                CurrentSoftwareCode, CurrentPicType, CurrentRelationCode, CurrentUserCode);
         }
         catch (Exception ex)
         {
@@ -459,11 +453,12 @@
         messageType = type;
     }
 
+    // «-» به عنوان جای‌نگهدار پارامتر خالی در مسیر استفاده می‌شود (مثل /scan/-/-/REL-1/-)
     private static string? NormalizeCode(string? code)
-        => string.IsNullOrWhiteSpace(code) ? null : code.Trim();
-
-    private static string? NormalizeString(string? value)
-        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    {
+        if (string.IsNullOrWhiteSpace(code) || code.Trim() == "-") return null;
+        return code.Trim();
+    }
 
     private static string Str(DataRow r, string col)
         => r.IsNull(col) ? string.Empty : r[col]?.ToString() ?? string.Empty;

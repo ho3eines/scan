@@ -8,6 +8,9 @@ namespace ScanSystem.Shared.Data;
 /// <summary>
 /// لایه دسترسی یکپارچه به داده‌ها با DataTable/DataRow.
 /// همه کوئری‌ها از <see cref="ScanSql"/> خوانده می‌شوند.
+///
+/// تصاویر در جدول اصلی پروژه (PDDImage.ImagesTable) ذخیره می‌شوند و
+/// Thumbnail ها در جدول جداگانه PDDImage.ImageThumbnails.
 /// </summary>
 public class ScanDataAccess
 {
@@ -61,7 +64,13 @@ public class ScanDataAccess
 
     // ───────────────────────── ScanRequests ─────────────────────────
 
-    public async Task<Guid> CreateRequestAsync(Guid agentId, bool isMultiPage, string? relationCode, string? inquiryCode, string? softwareCode, string? fullName = null)
+    public async Task<Guid> CreateRequestAsync(
+        Guid agentId,
+        bool isMultiPage,
+        string? relationCode,
+        string? picType,
+        string? softwareCode,
+        string? userCode)
     {
         var id = Guid.NewGuid();
         await ExecuteAsync(ScanSql.RequestsCreate, new
@@ -71,9 +80,9 @@ public class ScanDataAccess
             Status = ScanStatus.Pending,
             IsMultiPage = isMultiPage,
             RelationCode = NormalizeCode(relationCode),
-            InquiryCode = NormalizeCode(inquiryCode),
+            PicType = NormalizeCode(picType),
             SoftwareCode = NormalizeCode(softwareCode),
-            FullName = NormalizeString(fullName)
+            UserCode = NormalizeCode(userCode)
         });
         return id;
     }
@@ -96,69 +105,132 @@ public class ScanDataAccess
     public async Task<DataTable> GetRequestsListAsync()
         => await QueryDataTableAsync(ScanSql.RequestsGetList);
 
-    // ───────────────────────── Images ─────────────────────────
+    // ───────────────────────── Images (جدول اصلی پروژه) ─────────────────────────
 
-    public async Task<Guid> SaveImageAsync(Guid requestId, string fileName, byte[] data, byte[]? thumbnail, int pageNumber)
+    /// <summary>
+    /// ذخیره یک صفحه اسکن در PDDImage.ImagesTable.
+    /// فایل اصلی در ImageField و Thumbnail در PDDImage.ImageThumbnails ذخیره می‌شود.
+    /// هر سه درج (تصویر + Thumbnail + ارتباط درخواست) در یک تراکنش انجام می‌شوند.
+    /// </summary>
+    public async Task<decimal> SaveImageAsync(
+        Guid requestId,
+        string fileName,
+        string? contentType,
+        byte[] data,
+        byte[]? thumbnail,
+        int pageNumber)
     {
-        var id = Guid.NewGuid();
-        await ExecuteAsync(ScanSql.ImagesAdd, new
+        var fileType = ResolveFileType(fileName, contentType);
+        decimal? fileSizeKb = data.Length > 0 ? Math.Round(data.Length / 1024m, 0) : null;
+
+        using var conn = _factory.CreateConnection();
+        await conn.OpenAsync();
+        using var tx = conn.BeginTransaction();
+        try
         {
-            Id = id,
-            RequestId = requestId,
-            FileName = string.IsNullOrWhiteSpace(fileName) ? $"page_{pageNumber}.jpg" : fileName,
-            Data = data,
-            Thumbnail = thumbnail,
-            PageNumber = pageNumber
-        });
-        return id;
+            var id = await conn.ExecuteScalarAsync<decimal?>(
+                ScanSql.ImagesAdd,
+                new
+                {
+                    RequestId = requestId,
+                    Data = data,
+                    FileName = NormalizeFileName(fileName, pageNumber),
+                    FileType = fileType,
+                    Date = PersianDate.Today(),
+                    ScanTime = PersianDate.NowTime(),
+                    FileSizeKB = fileSizeKb
+                },
+                tx);
+
+            if (id is null || id.Value == 0)
+            {
+                tx.Rollback();
+                return 0;
+            }
+
+            if (thumbnail is { Length: > 0 })
+            {
+                await conn.ExecuteAsync(ScanSql.ThumbnailsAdd, new
+                {
+                    ImageId = id.Value,
+                    Thumbnail = thumbnail,
+                    ThumbSizeKB = Math.Round(thumbnail.Length / 1024m, 0)
+                }, tx);
+            }
+
+            await conn.ExecuteAsync(ScanSql.ScanRequestImagesAdd, new
+            {
+                Id = Guid.NewGuid(),
+                RequestId = requestId,
+                ImageId = id.Value,
+                PageNumber = pageNumber
+            }, tx);
+
+            tx.Commit();
+            return id.Value;
+        }
+        catch
+        {
+            try { tx.Rollback(); } catch { /* نادیده گرفته می‌شود */ }
+            // استثنا به بالا propagates می‌شود تا Hub/Agent خطا را گزارش کند
+            // (به‌جای ثبت بی‌صدا تصویر بدون Thumbnail/ارتباط).
+            throw;
+        }
     }
 
-    public async Task<byte[]?> GetImageDataAsync(Guid id)
+    public async Task<byte[]?> GetImageDataAsync(decimal id)
         => await ExecuteScalarAsync<byte[]?>(ScanSql.ImagesGetData, new { Id = id });
 
-    public async Task<byte[]?> GetImageThumbnailAsync(Guid id)
+    public async Task<byte[]?> GetImageThumbnailAsync(decimal id)
         => await ExecuteScalarAsync<byte[]?>(ScanSql.ImagesGetThumbnail, new { Id = id });
 
-    public async Task DeleteImageAsync(Guid id)
+    /// <summary>حذف نرم از جدول اصلی (ISDELETED=1) + حذف Thumbnail و ارتباط درخواست.</summary>
+    public async Task DeleteImageAsync(decimal id)
         => await ExecuteAsync(ScanSql.ImagesDelete, new { Id = id });
 
-    public async Task UpdateImageAsync(Guid id, byte[] data, byte[]? thumbnail)
-        => await ExecuteAsync(ScanSql.ImagesUpdate, new { Id = id, Data = data, Thumbnail = thumbnail });
+    public async Task UpdateImageAsync(decimal id, byte[] data, byte[]? thumbnail)
+    {
+        decimal? fileSizeKb = data.Length > 0 ? Math.Round(data.Length / 1024m, 0) : null;
+        await ExecuteAsync(ScanSql.ImagesUpdate, new
+        {
+            Id = id,
+            Data = data,
+            FileSizeKB = fileSizeKb,
+            Thumbnail = thumbnail,
+            ThumbSizeKB = thumbnail is { Length: > 0 } ? Math.Round(thumbnail.Length / 1024m, 0) : (decimal?)null
+        });
+    }
 
     // ───────────────────────── Gallery ─────────────────────────
 
     public async Task<(DataTable data, int total)> GetGalleryAsync(
         int skip,
         int take,
-        Guid? groupId,
-        string? machineName,
+        decimal? groupId,
         string? relationCode,
-        string? inquiryCode,
+        string? picType,
         string? softwareCode)
     {
-        var whereParts = new List<string>();
+        var whereParts = new List<string> { "i.ISDELETED = 0" };
         var p = new DynamicParameters();
         p.Add("@Skip", skip);
         p.Add("@Take", take);
 
         if (groupId.HasValue)
         {
-            whereParts.Add("EXISTS (SELECT 1 FROM dbo.ImageGroupItems igi WHERE igi.ImageId = i.Id AND igi.GroupId = @GroupId)");
+            whereParts.Add("i.ImageGroupID = @GroupId");
             p.Add("@GroupId", groupId.Value);
         }
-        if (!string.IsNullOrWhiteSpace(machineName))
-        {
-            whereParts.Add("a.MachineName = @MachineName");
-            p.Add("@MachineName", machineName.Trim());
-        }
-        AddCodeFilter(whereParts, p, "RelationCode", relationCode);
-        AddCodeFilter(whereParts, p, "InquiryCode", inquiryCode);
+        // گالری فقط بر اساس SoftwareCode / PicType / RelationCode فیلتر می‌شود
+        // (بدون فیلتر دستگاه و بدون فیلتر UserCode)
         AddCodeFilter(whereParts, p, "SoftwareCode", softwareCode);
+        AddCodeFilter(whereParts, p, "PicType", picType);
+        AddCodeFilter(whereParts, p, "RelationCode", relationCode);
 
-        var where = whereParts.Count > 0 ? "WHERE " + string.Join(" AND ", whereParts) : "";
+        var where = "WHERE " + string.Join(" AND ", whereParts);
 
         var countSql = string.Format(ScanSql.GalleryCount, where);
-        var dataSql = string.Format(ScanSql.GalleryPage, ScanSql.GalleryGroupsSubquery, where);
+        var dataSql = string.Format(ScanSql.GalleryPage, where);
 
         using var conn = _factory.CreateConnection();
         int total = await conn.ExecuteScalarAsync<int>(countSql, p);
@@ -169,44 +241,62 @@ public class ScanDataAccess
         return (dt, total);
     }
 
-    // ───────────────────────── Groups ─────────────────────────
+    // ───────────────────────── Groups (1 به n) ─────────────────────────
 
     public async Task<DataTable> GetGroupsAsync()
         => await QueryDataTableAsync(ScanSql.GroupsGetAll);
 
-    public async Task<DataRow?> GetGroupByNameAsync(string name)
+    public async Task<DataRow?> GetGroupByNameAsync(string name, string softwareCode)
     {
-        var dt = await QueryDataTableAsync(ScanSql.GroupsGetByName, new { Name = name.Trim() });
+        var dt = await QueryDataTableAsync(ScanSql.GroupsGetByName, new { Name = name.Trim(), SoftwareCode = softwareCode });
         return dt.Rows.Count > 0 ? dt.Rows[0] : null;
     }
 
-    public async Task<Guid> EnsureGroupAsync(string name)
+    public async Task<decimal> EnsureGroupAsync(string name, string softwareCode)
     {
         name = name.Trim();
-        var existing = await GetGroupByNameAsync(name);
-        if (existing != null) return (Guid)existing["Id"];
+        var existing = await GetGroupByNameAsync(name, softwareCode);
+        if (existing != null) return Convert.ToDecimal(existing["ID"]);
 
-        var id = Guid.NewGuid();
-        await ExecuteAsync(ScanSql.GroupsCreate, new { Id = id, Name = name });
-        return id;
+        var id = await ExecuteScalarAsync<decimal?>(
+            ScanSql.GroupsCreate,
+            new { Name = name, SoftwareCode = softwareCode });
+        return id ?? 0;
     }
 
-    public async Task DeleteGroupAsync(Guid id)
+    public async Task DeleteGroupAsync(decimal id)
         => await ExecuteAsync(ScanSql.GroupsDelete, new { Id = id });
 
-    public async Task AssignImageToGroupAsync(Guid imageId, Guid groupId)
-        => await ExecuteAsync(ScanSql.GroupItemsAssign, new { Id = Guid.NewGuid(), ImageId = imageId, GroupId = groupId });
+    /// <summary>تخصیص تصویر به یک گروه (ارتباط 1 به n).</summary>
+    public async Task AssignImageToGroupAsync(decimal imageId, decimal groupId)
+        => await ExecuteAsync(ScanSql.GroupSet, new { ImageId = imageId, GroupId = groupId });
 
-    public async Task RemoveImageFromGroupAsync(Guid imageId, Guid groupId)
-        => await ExecuteAsync(ScanSql.GroupItemsRemove, new { ImageId = imageId, GroupId = groupId });
+    /// <summary>حذف تصویر از گروه (ImageGroupID = NULL).</summary>
+    public async Task RemoveImageFromGroupAsync(decimal imageId, decimal groupId)
+        => await ExecuteAsync(ScanSql.GroupClear, new { ImageId = imageId, GroupId = groupId });
 
     // ───────────────────────── Helpers ─────────────────────────
 
     private static string? NormalizeCode(string? code)
         => string.IsNullOrWhiteSpace(code) ? null : code.Trim();
 
-    private static string? NormalizeString(string? value)
-        => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    private static string NormalizeFileName(string? fileName, int pageNumber)
+        => string.IsNullOrWhiteSpace(fileName) ? $"scan_p{pageNumber}.jpg" : fileName.Trim();
+
+    private static string ResolveFileType(string? fileName, string? contentType)
+    {
+        if (!string.IsNullOrWhiteSpace(contentType))
+        {
+            var ct = contentType.ToLowerInvariant();
+            if (ct.Contains("jpeg") || ct.Contains("jpg")) return "jpg";
+            if (ct.Contains("png")) return "png";
+            if (ct.Contains("tiff") || ct.Contains("tif")) return "tif";
+            if (ct.Contains("bmp")) return "bmp";
+        }
+        var ext = Path.GetExtension(fileName)?.TrimStart('.').ToLowerInvariant();
+        if (string.IsNullOrEmpty(ext)) return "jpg";
+        return ext.Length > 5 ? ext[..5] : ext;
+    }
 
     private static void AddCodeFilter(List<string> whereParts, DynamicParameters parameters, string columnName, string? value)
     {
