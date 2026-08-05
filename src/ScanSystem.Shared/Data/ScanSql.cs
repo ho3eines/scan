@@ -121,7 +121,7 @@ public static class ScanSql
 
     public const string ImagesGetData = @"
         SELECT ImageField FROM PDDImage.ImagesTable WITH (NOLOCK)
-        WHERE Id = @Id AND ISDELETED = 0;";
+        WHERE Id = @Id AND isnull([ISDELETED],0)=0;";
 
     public const string ImagesGetThumbnail = @"
         SELECT Thumbnail FROM PDDImage.ImageThumbnails WITH (NOLOCK)
