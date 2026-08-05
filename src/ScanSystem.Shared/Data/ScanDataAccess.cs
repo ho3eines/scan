@@ -211,7 +211,7 @@ public class ScanDataAccess
         string? picType,
         string? softwareCode)
     {
-        var whereParts = new List<string> { "i.ISDELETED = 0" };
+        var whereParts = new List<string> { "isnull(i.[ISDELETED],0)=0" };
         var p = new DynamicParameters();
         p.Add("@Skip", skip);
         p.Add("@Take", take);
