@@ -33,7 +33,6 @@ public interface IScanService
         decimal? groupId,
         string? relationCode,
         string? picType,
-        string? userCode,
         string? softwareCode);
     Task<byte[]?> GetImageDataAsync(decimal id);
     Task<byte[]?> GetImageThumbnailAsync(decimal id);

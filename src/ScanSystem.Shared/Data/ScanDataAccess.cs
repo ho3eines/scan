@@ -189,7 +189,6 @@ public class ScanDataAccess
         decimal? groupId,
         string? relationCode,
         string? picType,
-        string? userCode,
         string? softwareCode)
     {
         var whereParts = new List<string> { "i.ISDELETED = 0" };
@@ -202,10 +201,11 @@ public class ScanDataAccess
             whereParts.Add("i.ImageGroupID = @GroupId");
             p.Add("@GroupId", groupId.Value);
         }
+        // گالری فقط بر اساس SoftwareCode / PicType / RelationCode فیلتر می‌شود
+        // (بدون فیلتر دستگاه و بدون فیلتر UserCode)
         AddCodeFilter(whereParts, p, "SoftwareCode", softwareCode);
         AddCodeFilter(whereParts, p, "PicType", picType);
         AddCodeFilter(whereParts, p, "RelationCode", relationCode);
-        AddCodeFilter(whereParts, p, "UserCode", userCode);
 
         var where = "WHERE " + string.Join(" AND ", whereParts);
 

@@ -179,7 +179,6 @@
     [Parameter] public string? SoftwareCode { get; set; }
     [Parameter] public string? PicType { get; set; }
     [Parameter] public string? RelationCode { get; set; }
-    [Parameter] public string? UserCode { get; set; }
     [Parameter] public EventCallback<(string Text, string Type)> OnMessage { get; set; }
 
     // Gallery state
@@ -205,11 +204,12 @@
     private IDisposable? galleryChangedSub;
     private IDisposable? groupsChangedSub;
 
+    // گالری فقط بر اساس SoftwareCode / PicType / RelationCode فیلتر می‌شود
+    // (بدون فیلتر دستگاه و بدون فیلتر UserCode)
     private string CurrentContextKey => string.Join("|",
         SoftwareCode ?? string.Empty,
         PicType ?? string.Empty,
-        RelationCode ?? string.Empty,
-        UserCode ?? string.Empty);
+        RelationCode ?? string.Empty);
 
     protected override async Task OnInitializedAsync()
     {
@@ -288,7 +288,6 @@
                 activeGroupId,
                 RelationCode,
                 PicType,
-                UserCode,
                 SoftwareCode);
 
             if (gallery is null || gallery.Columns.Count == 0)

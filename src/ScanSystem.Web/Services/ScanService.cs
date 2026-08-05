@@ -128,9 +128,8 @@ public class ScanService : IScanService
         decimal? groupId,
         string? relationCode,
         string? picType,
-        string? userCode,
         string? softwareCode)
-        => await _db.GetGalleryAsync(skip, take, groupId, relationCode, picType, userCode, softwareCode);
+        => await _db.GetGalleryAsync(skip, take, groupId, relationCode, picType, softwareCode);
 
     public async Task<byte[]?> GetImageDataAsync(decimal id) => await _db.GetImageDataAsync(id);
     public async Task<byte[]?> GetImageThumbnailAsync(decimal id) => await _db.GetImageThumbnailAsync(id);

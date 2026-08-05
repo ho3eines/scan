@@ -55,6 +55,8 @@ Agent (WPF)    SQL Server
 - انتخاب دستگاه اسکنر (Agent) از لیست Agentهای آنلاین
 - دکمه شروع اسکن → ارسال درخواست به Agent انتخاب‌شده
 - ذخیره تصویر در `PDDImage.ImagesTable` با کدهای صحیح (از جدول `ScanRequests` کپی می‌شود)
+- **گالری** تمام تصاویرِ دارای همان `SoftwareCode / PicType / RelationCode` را نشان می‌دهد
+  (بدون فیلتر دستگاه و بدون فیلتر `UserCode` — یعنی تصاویر همه کاربران و همه دستگاه‌ها با این سه کد دیده می‌شوند)
 
 ### Agent (WPF)
 - بدون دکمه اسکن دستی — تمام اسکن‌ها از طریق وب ارسال می‌شوند
@@ -195,6 +197,7 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 - تصاویر به‌صورت `VARBINARY(MAX)` در `PDDImage.ImagesTable.ImageField` و Thumbnail خودکار در جدول جداگانه `PDDImage.ImageThumbnails` ذخیره می‌شوند.
 - تاریخ (`Date`) و ساعت (`ScanTime`) به‌صورت **شمسی** (مثلاً `1404/05/14` و `14:35`) ذخیره می‌شوند.
 - کدهای `SoftwareCode`، `PicType`، `RelationCode` و `UserCode` روی `ScanRequests` ذخیره می‌شوند و هنگام Insert تصویر به `ImagesTable` کپی می‌شوند.
+- گالری فقط بر اساس `SoftwareCode / PicType / RelationCode` فیلتر می‌شود — بدون فیلتر دستگاه (Agent) و بدون فیلتر `UserCode`.
 - گروه‌بندی **1 به n** است: هر تصویر فقط یک گروه دارد (`ImagesTable.ImageGroupID → BaseImageGroups.ID`).
 - حذف تصویر از جدول اصلی به‌صورت نرم (`ISDELETED = 1`) انجام می‌شود و Thumbnail آن پاک می‌شود.
 - `AgentConnectionRegistry` از `ConcurrentDictionary` استفاده می‌کند — کاملاً thread-safe.
