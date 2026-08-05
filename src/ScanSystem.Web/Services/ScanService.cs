@@ -7,6 +7,9 @@ namespace ScanSystem.Web.Services;
 
 public class ScanService : IScanService
 {
+    /// <summary>SoftwareCode پیش‌فرض برای گروه‌هایی که از داخل سیستم اسکن ساخته می‌شوند.</summary>
+    public const string DefaultGroupSoftwareCode = "SCAN";
+
     private readonly ScanDataAccess _db;
     private readonly AgentConnectionRegistry _connections;
     private readonly ILogger<ScanService> _logger;
@@ -78,7 +81,7 @@ public class ScanService : IScanService
 
     // ───────────────────────── درخواست‌های اسکن ─────────────────────────
 
-    public async Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage, string? relationCode, string? inquiryCode, string? softwareCode, string? fullName = null)
+    public async Task<Guid> CreateRequestAsync(string machineName, bool isMultiPage, string? relationCode, string? picType, string? softwareCode, string? userCode)
     {
         if (string.IsNullOrWhiteSpace(machineName)) return Guid.Empty;
         machineName = machineName.Trim();
@@ -91,7 +94,7 @@ public class ScanService : IScanService
         }
         if (agent is null) return Guid.Empty;
 
-        return await _db.CreateRequestAsync((Guid)agent["Id"], isMultiPage, relationCode, inquiryCode, softwareCode, fullName);
+        return await _db.CreateRequestAsync((Guid)agent["Id"], isMultiPage, relationCode, picType, softwareCode, userCode);
     }
 
     public async Task SetProcessingAsync(Guid id) => await _db.SetRequestStatusAsync(id, ScanStatus.Processing);
@@ -113,56 +116,65 @@ public class ScanService : IScanService
 
     // ───────────────────────── تصاویر / گالری ─────────────────────────
 
-    public async Task<Guid> SavePageAsync(Guid requestId, string fileName, byte[] data, int pageNumber)
+    public async Task<decimal> SavePageAsync(Guid requestId, string fileName, string? contentType, byte[] data, int pageNumber)
     {
         var thumbnail = ThumbnailGenerator.Generate(data);
-        return await _db.SaveImageAsync(requestId, fileName, data, thumbnail, pageNumber);
+        return await _db.SaveImageAsync(requestId, fileName, contentType, data, thumbnail, pageNumber);
     }
 
     public async Task<(DataTable data, int total)> GetGalleryPageAsync(
         int skip,
         int take,
-        Guid? groupId,
-        string? machineName,
+        decimal? groupId,
         string? relationCode,
-        string? inquiryCode,
+        string? picType,
+        string? userCode,
         string? softwareCode)
-        => await _db.GetGalleryAsync(skip, take, groupId, machineName, relationCode, inquiryCode, softwareCode);
+        => await _db.GetGalleryAsync(skip, take, groupId, relationCode, picType, userCode, softwareCode);
 
-    public async Task<byte[]?> GetImageDataAsync(Guid id) => await _db.GetImageDataAsync(id);
-    public async Task<byte[]?> GetImageThumbnailAsync(Guid id) => await _db.GetImageThumbnailAsync(id);
-    public async Task DeleteImageAsync(Guid id) => await _db.DeleteImageAsync(id);
+    public async Task<byte[]?> GetImageDataAsync(decimal id) => await _db.GetImageDataAsync(id);
+    public async Task<byte[]?> GetImageThumbnailAsync(decimal id) => await _db.GetImageThumbnailAsync(id);
+    public async Task DeleteImageAsync(decimal id) => await _db.DeleteImageAsync(id);
 
-    public async Task UpdateImageAsync(Guid id, byte[] data)
+    public async Task UpdateImageAsync(decimal id, byte[] data)
     {
         var thumbnail = ThumbnailGenerator.Generate(data);
         await _db.UpdateImageAsync(id, data, thumbnail);
     }
 
-    // ───────────────────────── گروه‌ها ─────────────────────────
+    // ───────────────────────── گروه‌ها (1 به n) ─────────────────────────
 
     public async Task<DataTable> GetGroupsDataTableAsync() => await _db.GetGroupsAsync();
 
-    public async Task<Guid> EnsureGroupAsync(string name)
+    public async Task<decimal> EnsureGroupAsync(string name, string? softwareCode)
     {
-        if (string.IsNullOrWhiteSpace(name)) return Guid.Empty;
-        return await _db.EnsureGroupAsync(name.Trim());
+        if (string.IsNullOrWhiteSpace(name)) return 0;
+        var sw = NormalizeGroupSoftwareCode(softwareCode);
+        return await _db.EnsureGroupAsync(name.Trim(), sw);
     }
 
-    public async Task DeleteGroupAsync(Guid id) => await _db.DeleteGroupAsync(id);
+    public async Task DeleteGroupAsync(decimal id) => await _db.DeleteGroupAsync(id);
 
-    public async Task AssignImageToGroupAsync(Guid imageId, string groupName)
+    public async Task AssignImageToGroupAsync(decimal imageId, string groupName, string? softwareCode)
     {
         if (string.IsNullOrWhiteSpace(groupName)) return;
-        var groupId = await EnsureGroupAsync(groupName);
-        if (groupId == Guid.Empty) return;
+        var sw = NormalizeGroupSoftwareCode(softwareCode);
+        var groupId = await _db.EnsureGroupAsync(groupName.Trim(), sw);
+        if (groupId == 0) return;
         await _db.AssignImageToGroupAsync(imageId, groupId);
     }
 
-    public async Task RemoveImageFromGroupAsync(Guid imageId, Guid groupId)
+    public async Task RemoveImageFromGroupAsync(decimal imageId, decimal groupId)
         => await _db.RemoveImageFromGroupAsync(imageId, groupId);
 
     // ───────────────────────── Helpers ─────────────────────────
+
+    private static string NormalizeGroupSoftwareCode(string? softwareCode)
+    {
+        // ستون SoftwareCode جدول BaseImageGroups فقط nvarchar(5) است.
+        var sw = string.IsNullOrWhiteSpace(softwareCode) ? DefaultGroupSoftwareCode : softwareCode.Trim();
+        return sw.Length > 5 ? sw[..5] : sw;
+    }
 
     private static string Str(DataRow r, string col)
         => r.IsNull(col) ? string.Empty : r[col]?.ToString() ?? string.Empty;

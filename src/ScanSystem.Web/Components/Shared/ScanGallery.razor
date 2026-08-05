@@ -7,9 +7,9 @@
 @inject Microsoft.JSInterop.IJSRuntime JS
 
 @*
-    گالری اسکن‌ها — نسخه بازگردانده‌شده از طراحی قبلی (PR #5):
-    گروه‌ها، انتخاب چندتایی، «بارگذاری بیشتر» و پنل عملیات تمام‌صفحه
-    (چرخش / گروه / دانلود / حذف).
+    گالری اسکن‌ها — متصل به جدول اصلی پروژه (PDDImage.ImagesTable):
+    گروه‌ها (ارتباط 1 به n از طریق ImageGroupID)، انتخاب چندتایی،
+    «بارگذاری بیشتر» و پنل عملیات تمام‌صفحه (چرخش / گروه / دانلود / حذف).
 *@
 
 <div class="sa-card">
@@ -27,9 +27,9 @@
             {
                 @foreach (DataRow g in groups.Rows)
                 {
-                    var gid = GuidVal(g, "Id");
+                    var gid = DecVal(g, "ID");
                     <span class="sa-group-chip @(activeGroupId == gid ? "active" : "")" @onclick="() => SelectGroup(gid)">
-                        <i class="bi bi-folder2"></i> @Str(g, "Name")
+                        <i class="bi bi-folder2"></i> @Str(g, "ImageGroupName")
                     </span>
                 }
             }
@@ -57,16 +57,16 @@
             <div class="sa-gallery-grid">
                 @foreach (DataRow row in gallery.Rows)
                 {
-                    var imgId = GuidVal(row, "Id");
+                    var imgId = DecVal(row, "Id");
                     var selected = selectedImages.Contains(imgId);
                     <div class="sa-tile@(selected ? " selected" : "")" @key="imgId" @onclick="() => OpenImage(imgId)">
                         <input type="checkbox" class="sa-tile-check" checked="@selected"
                                @onclick:stopPropagation="true" @onclick="() => ToggleSelect(imgId)" />
-                        <span class="sa-tile-badge">@(string.IsNullOrEmpty(Str(row, "Groups")) ? "—" : Str(row, "Groups"))</span>
+                        <span class="sa-tile-badge">@(string.IsNullOrEmpty(Str(row, "GroupName")) ? "—" : Str(row, "GroupName"))</span>
                         <img src="@GetThumbnailSrc(imgId)" loading="lazy" alt="@Str(row, "FileName")"
-                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjFmM2Y1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM2Yjc1N2QiPuaYpeeahOGJtOacjeWLmzwvdGV4dD48L3N2Zz4='" />
+                             onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjFmM2Y1Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMTIiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiM2Yjc1N2QiPuaYpeeahOGJtOacjeWLmzwvdGV4dD48L3N2Zz4='\" />
                         <div class="sa-tile-info">
-                            @Str(row, "AgentMachineName") • @FormatDate(row, "CreatedAt")
+                            @Str(row, "FileName") • @Str(row, "Date") @Str(row, "ScanTime")
                         </div>
                     </div>
                 }
@@ -96,7 +96,7 @@
                     {
                         @foreach (DataRow g in groups.Rows)
                         {
-                            <option value="@Str(g, "Name")">@Str(g, "Name")</option>
+                            <option value="@Str(g, "ImageGroupName")">@Str(g, "ImageGroupName")</option>
                         }
                     }
                 </select>
@@ -135,7 +135,7 @@
                     {
                         @foreach (DataRow g in groups.Rows)
                         {
-                            <option value="@Str(g, "Name")">@Str(g, "Name")</option>
+                            <option value="@Str(g, "ImageGroupName")">@Str(g, "ImageGroupName")</option>
                         }
                     }
                 </select>
@@ -176,10 +176,10 @@
 
 @code {
     [Parameter] public HubConnection? Hub { get; set; }
-    [Parameter] public string? MachineName { get; set; }
-    [Parameter] public string? RelationCode { get; set; }
-    [Parameter] public string? InquiryCode { get; set; }
     [Parameter] public string? SoftwareCode { get; set; }
+    [Parameter] public string? PicType { get; set; }
+    [Parameter] public string? RelationCode { get; set; }
+    [Parameter] public string? UserCode { get; set; }
     [Parameter] public EventCallback<(string Text, string Type)> OnMessage { get; set; }
 
     // Gallery state
@@ -190,13 +190,13 @@
     private const int GalleryPageSize = 20;
     private bool galleryLoading = false;
     private bool galleryReloadPending = false;
-    private Guid? activeGroupId = null;
-    private HashSet<Guid> selectedImages = new();
-    private Dictionary<Guid, string> thumbnailCache = new();
+    private decimal? activeGroupId = null;
+    private HashSet<decimal> selectedImages = new();
+    private Dictionary<decimal, string> thumbnailCache = new();
     private string contextKey = string.Empty;
 
     // Modal state
-    private Guid? modalImageId = null;
+    private decimal? modalImageId = null;
     private string modalImageSrc = "";
     private bool modalBusy = false;
 
@@ -206,10 +206,10 @@
     private IDisposable? groupsChangedSub;
 
     private string CurrentContextKey => string.Join("|",
-        MachineName ?? string.Empty,
+        SoftwareCode ?? string.Empty,
+        PicType ?? string.Empty,
         RelationCode ?? string.Empty,
-        InquiryCode ?? string.Empty,
-        SoftwareCode ?? string.Empty);
+        UserCode ?? string.Empty);
 
     protected override async Task OnInitializedAsync()
     {
@@ -239,7 +239,7 @@
             }));
         }
 
-        // با تغییر فیلترها (دستگاه / کدهای زمینه) گالری از نو بارگذاری می‌شود
+        // با تغییر فیلترها (کدهای زمینه) گالری از نو بارگذاری می‌شود
         var nextKey = CurrentContextKey;
         if (!string.Equals(contextKey, nextKey, StringComparison.Ordinal))
         {
@@ -286,9 +286,9 @@
                 gallerySkip,
                 GalleryPageSize,
                 activeGroupId,
-                string.IsNullOrEmpty(MachineName) ? null : MachineName,
                 RelationCode,
-                InquiryCode,
+                PicType,
+                UserCode,
                 SoftwareCode);
 
             if (gallery is null || gallery.Columns.Count == 0)
@@ -325,13 +325,13 @@
 
     // ───────────────────────── Gallery Interactions ─────────────────────────
 
-    private void ToggleSelect(Guid id)
+    private void ToggleSelect(decimal id)
     {
         if (selectedImages.Contains(id)) selectedImages.Remove(id);
         else selectedImages.Add(id);
     }
 
-    private async Task SelectGroup(Guid? id)
+    private async Task SelectGroup(decimal? id)
     {
         activeGroupId = id;
         await LoadGallery(reset: true);
@@ -343,7 +343,7 @@
         if (string.IsNullOrWhiteSpace(name) || Hub == null) return;
         try
         {
-            await Hub.InvokeAsync("CreateGroup", name.Trim());
+            await Hub.InvokeAsync("CreateGroup", name.Trim(), SoftwareCode);
             await LoadGroups();
             await Notify($"گروه «{name.Trim()}» ساخته شد.", "success");
         }
@@ -360,7 +360,7 @@
 
         foreach (var id in selectedImages.ToList())
         {
-            try { await Hub.InvokeAsync("AssignImageToGroup", id, groupName.Trim()); }
+            try { await Hub.InvokeAsync("AssignImageToGroup", id, groupName.Trim(), SoftwareCode); }
             catch { }
         }
         selectedImages.Clear();
@@ -386,7 +386,7 @@
 
     // ───────────────────────── Modal ─────────────────────────
 
-    private async Task OpenImage(Guid id)
+    private async Task OpenImage(decimal id)
     {
         modalImageId = id;
         modalBusy = true;
@@ -448,7 +448,7 @@
 
         try
         {
-            await Hub.InvokeAsync("AssignImageToGroup", modalImageId.Value, groupName.Trim());
+            await Hub.InvokeAsync("AssignImageToGroup", modalImageId.Value, groupName.Trim(), SoftwareCode);
             await LoadGallery(reset: true);
             await Notify($"تصویر به گروه «{groupName.Trim()}» اضافه شد.", "success");
         }
@@ -477,7 +477,8 @@
     private async Task DownloadCurrent()
     {
         if (modalImageId == null) return;
-        var shortId = modalImageId.Value.ToString()[..8];
+        var shortId = modalImageId.Value.ToString("0");
+        if (shortId.Length > 8) shortId = shortId[..8];
         await JS.InvokeVoidAsync("eval",
             $"var a=document.createElement('a');a.href='{modalImageSrc}';a.download='scan_{shortId}.jpg';document.body.appendChild(a);a.click();a.remove();");
     }
@@ -503,14 +504,14 @@
 
     // ───────────────────────── Helpers ─────────────────────────
 
-    private string GetThumbnailSrc(Guid id)
+    private string GetThumbnailSrc(decimal id)
     {
         if (thumbnailCache.TryGetValue(id, out var src)) return src;
         _ = LoadThumbnailAsync(id);
         return "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
     }
 
-    private async Task LoadThumbnailAsync(Guid id)
+    private async Task LoadThumbnailAsync(decimal id)
     {
         try
         {
@@ -543,11 +544,8 @@
     private static string Str(DataRow r, string col)
         => r.IsNull(col) ? string.Empty : r[col]?.ToString() ?? string.Empty;
 
-    private static Guid GuidVal(DataRow r, string col)
-        => r.IsNull(col) ? Guid.Empty : (Guid)r[col];
-
-    private static string FormatDate(DataRow r, string col)
-        => r.IsNull(col) ? "—" : Convert.ToDateTime(r[col]).ToString("yyyy/MM/dd HH:mm");
+    private static decimal DecVal(DataRow r, string col)
+        => r.IsNull(col) ? 0 : Convert.ToDecimal(r[col]);
 
     public ValueTask DisposeAsync()
     {

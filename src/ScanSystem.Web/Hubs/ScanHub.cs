@@ -9,6 +9,7 @@ namespace ScanSystem.Web.Hubs;
 /// <summary>
 /// مرکز ارتباط زنده بین Blazor UI و WPF Agentها.
 /// تمام عملیات (اسکن، گالری، گروه‌بندی، ویرایش تصویر) از طریق این Hub انجام می‌شود.
+/// تصاویر در PDDImage.ImagesTable (جدول اصلی پروژه) ذخیره می‌شوند.
 /// </summary>
 public class ScanHub : Hub
 {
@@ -45,26 +46,26 @@ public class ScanHub : Hub
     public async Task<Guid> RequestScanWithContext(
         string machineName,
         bool isMultiPage,
-        string? relationCode,
-        string? inquiryCode,
         string? softwareCode,
-        string? fullName = null)
+        string? picType,
+        string? relationCode,
+        string? userCode)
     {
         if (string.IsNullOrWhiteSpace(machineName)) return Guid.Empty;
         machineName = machineName.Trim();
 
-        var id = await _service.CreateRequestAsync(machineName, isMultiPage, relationCode, inquiryCode, softwareCode, fullName);
+        var id = await _service.CreateRequestAsync(machineName, isMultiPage, relationCode, picType, softwareCode, userCode);
         if (id == Guid.Empty) return id;
 
         _logger.LogInformation(
-            "Scan requested {Id} for {Machine} (multiPage={Mp}, relation={RelationCode}, inquiry={InquiryCode}, software={SoftwareCode}, name={FullName})",
+            "Scan requested {Id} for {Machine} (multiPage={Mp}, software={SoftwareCode}, picType={PicType}, relation={RelationCode}, user={UserCode})",
             id,
             machineName,
             isMultiPage,
-            relationCode,
-            inquiryCode,
             softwareCode,
-            fullName);
+            picType,
+            relationCode,
+            userCode);
 
         var connectionId = _connections.GetConnectionId(machineName);
         if (connectionId is null)
@@ -89,11 +90,11 @@ public class ScanHub : Hub
         await Clients.All.SendAsync("RequestsChanged");
     }
 
-    public async Task<Guid> UploadPage(Guid id, string fileName, string contentType, byte[] data, int pageNumber)
+    public async Task<decimal> UploadPage(Guid id, string fileName, string? contentType, byte[] data, int pageNumber)
     {
         try
         {
-            var imageId = await _service.SavePageAsync(id, fileName, data, pageNumber);
+            var imageId = await _service.SavePageAsync(id, fileName, contentType, data, pageNumber);
             _logger.LogInformation("Page {Page} uploaded for request {Id} ({Size} bytes)", pageNumber, id, data.Length);
 
             await Clients.All.SendAsync("PageUploaded", id, imageId, pageNumber);
@@ -135,14 +136,14 @@ public class ScanHub : Hub
 
     // ───────────────────────── گالری ─────────────────────────
 
-    public async Task<bool> DeleteImage(Guid id)
+    public async Task<bool> DeleteImage(decimal id)
     {
         await _service.DeleteImageAsync(id);
         await Clients.All.SendAsync("GalleryChanged");
         return true;
     }
 
-    public async Task<bool> RotateImage(Guid id, int angle)
+    public async Task<bool> RotateImage(decimal id, int angle)
     {
         if (angle is not (90 or 180 or 270)) return false;
         var data = await _service.GetImageDataAsync(id);
@@ -154,7 +155,7 @@ public class ScanHub : Hub
         return true;
     }
 
-    public async Task<bool> ReplaceImage(Guid id, byte[] data)
+    public async Task<bool> ReplaceImage(decimal id, byte[] data)
     {
         if (data is null || data.Length == 0) return false;
         await _service.UpdateImageAsync(id, data);
@@ -162,14 +163,14 @@ public class ScanHub : Hub
         return true;
     }
 
-    // ───────────────────────── گروه‌ها ─────────────────────────
+    // ───────────────────────── گروه‌ها (1 به n) ─────────────────────────
 
-    public async Task<Guid> CreateGroup(string name)
+    public async Task<decimal> CreateGroup(string name, string? softwareCode)
     {
-        return await _service.EnsureGroupAsync(name);
+        return await _service.EnsureGroupAsync(name, softwareCode);
     }
 
-    public async Task<bool> DeleteGroup(Guid id)
+    public async Task<bool> DeleteGroup(decimal id)
     {
         await _service.DeleteGroupAsync(id);
         await Clients.All.SendAsync("GroupsChanged");
@@ -177,15 +178,15 @@ public class ScanHub : Hub
         return true;
     }
 
-    public async Task<bool> AssignImageToGroup(Guid imageId, string groupName)
+    public async Task<bool> AssignImageToGroup(decimal imageId, string groupName, string? softwareCode)
     {
-        await _service.AssignImageToGroupAsync(imageId, groupName);
+        await _service.AssignImageToGroupAsync(imageId, groupName, softwareCode);
         await Clients.All.SendAsync("GroupsChanged");
         await Clients.All.SendAsync("GalleryChanged");
         return true;
     }
 
-    public async Task<bool> RemoveImageFromGroup(Guid imageId, Guid groupId)
+    public async Task<bool> RemoveImageFromGroup(decimal imageId, decimal groupId)
     {
         await _service.RemoveImageFromGroupAsync(imageId, groupId);
         await Clients.All.SendAsync("GalleryChanged");

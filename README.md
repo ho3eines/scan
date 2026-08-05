@@ -12,9 +12,15 @@ Blazor Server (UI + API)
         │
    ┌────┴─────────┐
 Agent (WPF)    SQL Server
-   │            (PddDocuments)
- Scanner       Images + Data (VARBINARY)
+   │            (دیتابیس اصلی پروژه)
+ Scanner       PDDImage.ImagesTable + ImageThumbnails
 ```
+
+سیستم به **دیتابیس اصلی پروژه** (Schema: `PDDImage`) متصل می‌شود:
+- فایل اصلی تصویر در جدول اصلی **`PDDImage.ImagesTable`** (ستون `ImageField`) ذخیره می‌شود.
+- **Thumbnail ها** به دلیل حجم بالای جدول اصلی، در جدول جداگانه **`PDDImage.ImageThumbnails`** ذخیره می‌شوند.
+- گروه‌بندی با جدول **`PDDImage.BaseImageGroups`** و ارتباط **1 به n** (ستون `ImageGroupID` در جدول تصاویر) انجام می‌شود.
+- تاریخ تصویر به‌صورت **شمسی** (مثلاً `1404/05/14`) در ستون `Date` ذخیره می‌شود.
 
 ---
 
@@ -39,14 +45,16 @@ Agent (WPF)    SQL Server
 - بروزرسانی لحظه‌ای با SignalR (وقتی Agent اسکن انجام می‌دهد، لیست بروز می‌شود)
 
 ### صفحه اسکن (`/scan`)
-- دریافت اطلاعات از طریق Query String:
+- دریافت اطلاعات از مسیر URL:
   ```text
-  /scan?relationCode=REL-100&inquiryCode=INQ-200&softwareCode=SW-300&fullName=علی+رضایی
+  /scan/{SoftwareCode}/{PicType}/{RelationCode}/{UserCode}
+  /scan/SW-2024/Card/REL-100/U-200
   ```
-- نمایش اطلاعات زمینه (اینکویری، نام، سافتور، ریلیشن) با آیکون
+  (پارامتر خالی با `-` پر می‌شود: `/scan/-/-/REL-100/-`)
+- نمایش اطلاعات زمینه (سافتور کد، نوع تصویر، ریلیشن کد، کد کاربر) با آیکون
 - انتخاب دستگاه اسکنر (Agent) از لیست Agentهای آنلاین
 - دکمه شروع اسکن → ارسال درخواست به Agent انتخاب‌شده
-- ذخیره تصویر با کدهای صحیح (از جدول ScanRequests کپی می‌شود)
+- ذخیره تصویر در `PDDImage.ImagesTable` با کدهای صحیح (از جدول `ScanRequests` کپی می‌شود)
 
 ### Agent (WPF)
 - بدون دکمه اسکن دستی — تمام اسکن‌ها از طریق وب ارسال می‌شوند
@@ -85,14 +93,26 @@ Agent (WPF)    SQL Server
 sqlcmd -S . -E -i database\01_CreateDatabase.sql
 ```
 
-اسکریپت Idempotent است و دیتابیس **PddDocuments** را با ۵ جدول می‌سازد:
-`Agents`, `ScanRequests`, `Images`, `ImageGroups`, `ImageGroupItems`.
+اسکریپت Idempotent است و دیتابیس **PddDocuments** را با جداول زیر آماده می‌کند
+(جداول اصلی دقیقاً مطابق ساختار پروژه اصلی ساخته می‌شوند و اگر موجود باشند تغییری نمی‌کنند):
 
-ستون‌های اضافه‌شده در جدول `ScanRequests`:
-- `RelationCode` NVARCHAR(100) NULL
-- `InquiryCode` NVARCHAR(100) NULL
+| جدول | نقش |
+|---|---|
+| `PDDImage.ImagesTable` | جدول اصلی عکس (دقیقاً مطابق DDL پروژه اصلی) — فایل در `ImageField` |
+| `PDDImage.BaseImageGroups` | جدول گروه‌ها (دقیقاً مطابق DDL پروژه اصلی) — ارتباط 1 به n با `ImageGroupID` |
+| `PDDImage.ImageThumbnails` | **Thumbnail ها** — جدا از جدول اصلی (کلید: `ImageId` = `ImagesTable.Id`) |
+| `PDDImage.Agents` | دستگاه‌های اسکنر (داخلی سیستم اسکن) |
+| `PDDImage.ScanRequests` | درخواست‌های اسکن (داخلی سیستم اسکن) |
+| `PDDImage.ScanRequestImages` | ارتباط درخواست ↔ تصویر (چون جدول اصلی ستون RequestId ندارد) |
+
+کدهای ذخیره‌شده روی هر درخواست (`ScanRequests`):
 - `SoftwareCode` NVARCHAR(100) NULL
-- `FullName` NVARCHAR(200) NULL
+- `PicType` NVARCHAR(100) NULL
+- `RelationCode` NVARCHAR(100) NULL
+- `UserCode` NVARCHAR(100) NULL
+
+این کدها هنگام ذخیره تصویر به `ImagesTable` کپی می‌شوند. حذف تصویر به‌صورت **نرم** (`ISDELETED = 1`)
+انجام می‌شود چون جدول اصلی متعلق به پروژه اصلی است.
 
 ## ۲) تنظیم Connection String
 
@@ -118,7 +138,7 @@ dotnet run
 | مسیر | کاربرد |
 |---|---|
 | `/` | لیست اسکن‌ها + فرم افزودن جدید |
-| `/scan` | فرم اسکن — دریافت اطلاعات از Query String |
+| `/scan` | فرم اسکن — دریافت کدها از مسیر: `/scan/{SoftwareCode}/{PicType}/{RelationCode}/{UserCode}` |
 
 ## ۴) اجرای Agent (کلاینت)
 
@@ -160,7 +180,7 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 | جهت | متد | آرگومان‌ها |
 |---|---|---|
 | Client→Server | `RegisterAgent` | `machineName` |
-| Client→Server | `RequestScanWithContext` | `machineName, isMultiPage, relationCode, inquiryCode, softwareCode, fullName` |
+| Client→Server | `RequestScanWithContext` | `machineName, isMultiPage, softwareCode, picType, relationCode, userCode` |
 | Client→Server | `StartProcessing` / `CompleteScan` / `ReportError` | `requestId[, message]` |
 | Client→Server | `UploadPage` | `requestId, fileName, contentType, data, pageNumber` |
 | Server→All | `AgentStatusChanged`, `AgentsChanged`, `RequestsChanged` | — |
@@ -172,8 +192,11 @@ dotnet publish src\ScanSystem.Agent\ScanSystem.Agent.csproj -c Release -r win-x6
 ## نکات فنی
 
 - **بدون EF Core** — همه دسترسی‌ها با Dapper و کوئری‌های Parametrized.
-- تصاویر به‌صورت `VARBINARY(MAX)` + Thumbnail خودکار ذخیره می‌شوند.
-- کدهای `RelationCode`، `InquiryCode`، `SoftwareCode` و `FullName` روی `ScanRequests` ذخیره می‌شوند و هنگام Insert تصویر، سه کد اول به `Images` کپی می‌شوند.
+- تصاویر به‌صورت `VARBINARY(MAX)` در `PDDImage.ImagesTable.ImageField` و Thumbnail خودکار در جدول جداگانه `PDDImage.ImageThumbnails` ذخیره می‌شوند.
+- تاریخ (`Date`) و ساعت (`ScanTime`) به‌صورت **شمسی** (مثلاً `1404/05/14` و `14:35`) ذخیره می‌شوند.
+- کدهای `SoftwareCode`، `PicType`، `RelationCode` و `UserCode` روی `ScanRequests` ذخیره می‌شوند و هنگام Insert تصویر به `ImagesTable` کپی می‌شوند.
+- گروه‌بندی **1 به n** است: هر تصویر فقط یک گروه دارد (`ImagesTable.ImageGroupID → BaseImageGroups.ID`).
+- حذف تصویر از جدول اصلی به‌صورت نرم (`ISDELETED = 1`) انجام می‌شود و Thumbnail آن پاک می‌شود.
 - `AgentConnectionRegistry` از `ConcurrentDictionary` استفاده می‌کند — کاملاً thread-safe.
 - Agent از `Channel<ScanJob>` برای سریال‌سازی درخواست‌ها استفاده می‌کند.
 - حداکثر حجم آپلود: 100MB (Kestrel + FormOptions).

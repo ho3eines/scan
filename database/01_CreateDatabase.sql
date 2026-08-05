@@ -1,10 +1,18 @@
 /* ============================================================================
    ScanSystem - Enterprise Document Scanning System
-   Database: PddDocuments
+   Database: PddDocuments (متصل به دیتابیس اصلی پروژه)
    SQL Server + T-SQL
    ----------------------------------------------------------------------------
    اجرا با SQL Server Management Studio یا sqlcmd:
      sqlcmd -S . -E -i 01_CreateDatabase.sql
+
+   نکته مهم:
+   - جدول‌های اصلی عکس و گروه دقیقاً مطابق ساختار پروژه اصلی (Schema: PDDImage)
+     ساخته می‌شوند و اگر از قبل موجود باشند، دست‌نخورده می‌مانند.
+   - فایل اصلی تصویر در ستون ImageField خود جدول ImagesTable ذخیره می‌شود.
+   - Thumbnail ها (به دلیل حجم بالای جدول اصلی) در جدول جداگانه
+     PDDImage.ImageThumbnails ذخیره می‌شوند.
+   - ارتباط گروه با تصویر 1 به n است: ImagesTable.ImageGroupID -> BaseImageGroups.ID
    ============================================================================ */
 
 IF DB_ID(N'PddDocuments') IS NULL
@@ -16,10 +24,95 @@ GO
 USE [PddDocuments];
 GO
 
-/* ──────────────────────────── Agents ──────────────────────────── */
-IF OBJECT_ID(N'dbo.Agents', N'U') IS NULL
+/* ─────────────────────────── Schema PDDImage ─────────────────────────── */
+IF SCHEMA_ID(N'PDDImage') IS NULL
+    EXEC(N'CREATE SCHEMA [PDDImage]');
+GO
+
+/* ════════════════════════════════════════════════════════════════════════
+   جدول اصلی عکس — دقیقاً مطابق جدول پروژه اصلی
+   (اگر در دیتابیس اصلی موجود باشد، تغییری در آن ایجاد نمی‌شود)
+   ════════════════════════════════════════════════════════════════════════ */
+IF OBJECT_ID(N'PDDImage.ImagesTable', N'U') IS NULL
 BEGIN
-    CREATE TABLE dbo.Agents
+    CREATE TABLE [PDDImage].[ImagesTable](
+        [ImageField] [varbinary](max) NULL,
+        [SoftwareCode] [nvarchar](50) NULL,
+        [PicType] [nvarchar](50) NULL,
+        [RelationCode] [nvarchar](50) NULL,
+        [OldRelationCode] [nvarchar](300) NULL,
+        [UserCode] [nvarchar](50) NULL,
+        [Date] [nvarchar](10) NULL,
+        [Id] [numeric](18, 0) IDENTITY(1,1) NOT NULL,
+        [ImageGroupID] [numeric](18, 0) NULL,
+        [FileType] [nvarchar](5) NULL,
+        [FileName] [varchar](50) NULL,
+        [Priority] [int] NULL,
+        [QualityPercent] [int] NULL,
+        [ScanTime] [nvarchar](5) NULL,
+        [BarCode] [int] NULL,
+        [ISLock] [bit] NULL,
+        [IsPrint] [bit] NULL,
+        [ISDELETED] [bit] NOT NULL,
+        [ImageDescription] [nvarchar](500) NULL,
+        [ReceptionID] [numeric](18, 0) NULL,
+        [PacsCode] [nvarchar](100) NULL,
+        [ISLeadToolsCompression] [bit] NULL,
+        [FileSizeKB] [numeric](18, 0) NULL,
+        [ISDirectUploadLink] [bit] NULL,
+        [PDDImageVersion] [varchar](20) NULL,
+     CONSTRAINT [PK_ImagesTable] PRIMARY KEY CLUSTERED
+    (
+        [Id] ASC
+    )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+    ) ON [PRIMARY] TEXTIMAGE_ON [PRIMARY]
+
+    ALTER TABLE [PDDImage].[ImagesTable] ADD  CONSTRAINT [DF_IMAGESTABLE_ISDELETED]  DEFAULT ((0)) FOR [ISDELETED]
+END
+GO
+
+/* ════════════════════════════════════════════════════════════════════════
+   جدول گروه‌ها — دقیقاً مطابق جدول پروژه اصلی
+   ════════════════════════════════════════════════════════════════════════ */
+IF OBJECT_ID(N'PDDImage.BaseImageGroups', N'U') IS NULL
+BEGIN
+    CREATE TABLE [PDDImage].[BaseImageGroups](
+        [ID] [numeric](18, 0) IDENTITY(1,1) NOT NULL,
+        [ImageGroupName] [nvarchar](50) NOT NULL,
+        [SoftwareCode] [nvarchar](5) NOT NULL,
+        [BarCode] [int] NULL,
+        [ColorRGB] [int] NULL,
+     CONSTRAINT [PK_BaseImageGroups] PRIMARY KEY CLUSTERED
+    (
+        [ID] ASC
+    )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+    ) ON [PRIMARY]
+END
+GO
+
+/* ════════════════════════════════════════════════════════════════════════
+   جدول Thumbnail ها — جدا از جدول اصلی عکس (چون جدول اصلی حجم بالایی دارد)
+   ارتباط 1 به 1: ImageId همان Id جدول ImagesTable است.
+   ════════════════════════════════════════════════════════════════════════ */
+IF OBJECT_ID(N'PDDImage.ImageThumbnails', N'U') IS NULL
+BEGIN
+    CREATE TABLE PDDImage.ImageThumbnails
+    (
+        ImageId    NUMERIC(18,0)  NOT NULL,
+        Thumbnail  VARBINARY(MAX) NOT NULL,
+        FileSizeKB NUMERIC(18,0)  NULL,
+        CreatedAt  DATETIME       NOT NULL CONSTRAINT DF_ImageThumbnails_CreatedAt DEFAULT (SYSDATETIME()),
+        CONSTRAINT PK_ImageThumbnails PRIMARY KEY (ImageId),
+        CONSTRAINT FK_ImageThumbnails_ImagesTable
+            FOREIGN KEY (ImageId) REFERENCES PDDImage.ImagesTable(Id) ON DELETE CASCADE
+    );
+END
+GO
+
+/* ─────────────────────────── Agents (داخلی سیستم اسکن) ─────────────────────────── */
+IF OBJECT_ID(N'PDDImage.Agents', N'U') IS NULL
+BEGIN
+    CREATE TABLE PDDImage.Agents
     (
         Id            UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Agents PRIMARY KEY,
         MachineName   NVARCHAR(100)    NOT NULL,
@@ -30,107 +123,79 @@ BEGIN
 END
 GO
 
-/* ──────────────────────────── ScanRequests ──────────────────────────── */
-IF OBJECT_ID(N'dbo.ScanRequests', N'U') IS NULL
+/* ─────────────────────────── ScanRequests (داخلی سیستم اسکن) ─────────────────────────── */
+IF OBJECT_ID(N'PDDImage.ScanRequests', N'U') IS NULL
 BEGIN
-    CREATE TABLE dbo.ScanRequests
+    CREATE TABLE PDDImage.ScanRequests
     (
         Id           UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_ScanRequests PRIMARY KEY,
         AgentId      UNIQUEIDENTIFIER NOT NULL,
         Status       NVARCHAR(50)     NOT NULL CONSTRAINT DF_ScanRequests_Status DEFAULT (N'Pending'),
         IsMultiPage  BIT              NOT NULL CONSTRAINT DF_ScanRequests_IsMultiPage DEFAULT (0),
         RelationCode NVARCHAR(100)    NULL,
-        InquiryCode  NVARCHAR(100)    NULL,
+        PicType      NVARCHAR(100)    NULL,
         SoftwareCode NVARCHAR(100)    NULL,
+        UserCode     NVARCHAR(100)    NULL,
         CreatedAt    DATETIME         NOT NULL CONSTRAINT DF_ScanRequests_CreatedAt DEFAULT (SYSDATETIME()),
         CompletedAt  DATETIME         NULL,
         CONSTRAINT FK_ScanRequests_Agents
-            FOREIGN KEY (AgentId) REFERENCES dbo.Agents(Id) ON DELETE CASCADE
+            FOREIGN KEY (AgentId) REFERENCES PDDImage.Agents(Id) ON DELETE CASCADE
     );
 END
 GO
 
-IF COL_LENGTH(N'dbo.ScanRequests', N'RelationCode') IS NULL
-    ALTER TABLE dbo.ScanRequests ADD RelationCode NVARCHAR(100) NULL;
-IF COL_LENGTH(N'dbo.ScanRequests', N'InquiryCode') IS NULL
-    ALTER TABLE dbo.ScanRequests ADD InquiryCode NVARCHAR(100) NULL;
-IF COL_LENGTH(N'dbo.ScanRequests', N'SoftwareCode') IS NULL
-    ALTER TABLE dbo.ScanRequests ADD SoftwareCode NVARCHAR(100) NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ScanRequests') AND name = N'IX_ScanRequests_AgentId')
+    CREATE INDEX IX_ScanRequests_AgentId ON PDDImage.ScanRequests(AgentId);
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.ScanRequests') AND name = N'IX_ScanRequests_AgentId')
-    CREATE INDEX IX_ScanRequests_AgentId ON dbo.ScanRequests(AgentId);
-GO
-
-/* ──────────────────────────── Images ──────────────────────────── */
-IF OBJECT_ID(N'dbo.Images', N'U') IS NULL
+/* ─────────────────────────── ScanRequestImages (ارتباط داخلی درخواست ↔ تصویر) ───────────────────────────
+   جدول اصلی عکس ستون RequestId ندارد (نباید به آن فیلد اضافه کرد)،
+   پس برای شمارش/مدیریت تصاویر هر درخواست از این جدول کمکی استفاده می‌کنیم. */
+IF OBJECT_ID(N'PDDImage.ScanRequestImages', N'U') IS NULL
 BEGIN
-    CREATE TABLE dbo.Images
+    CREATE TABLE PDDImage.ScanRequestImages
     (
-        Id          UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_Images PRIMARY KEY,
-        RequestId   UNIQUEIDENTIFIER NOT NULL,
-        FileName    NVARCHAR(255)    NULL,
-        Data        VARBINARY(MAX)   NOT NULL,
-        Thumbnail   VARBINARY(MAX)   NULL,
-        RelationCode NVARCHAR(100)    NULL,
-        InquiryCode  NVARCHAR(100)    NULL,
-        SoftwareCode NVARCHAR(100)    NULL,
-        PageNumber  INT              NOT NULL CONSTRAINT DF_Images_PageNumber DEFAULT (1),
-        CreatedAt   DATETIME         NOT NULL CONSTRAINT DF_Images_CreatedAt DEFAULT (SYSDATETIME()),
-        CONSTRAINT FK_Images_ScanRequests
-            FOREIGN KEY (RequestId) REFERENCES dbo.ScanRequests(Id) ON DELETE CASCADE
+        Id         UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_ScanRequestImages PRIMARY KEY,
+        RequestId  UNIQUEIDENTIFIER NOT NULL,
+        ImageId    NUMERIC(18,0)    NOT NULL,
+        PageNumber INT              NOT NULL CONSTRAINT DF_ScanRequestImages_PageNumber DEFAULT (1),
+        CreatedAt  DATETIME         NOT NULL CONSTRAINT DF_ScanRequestImages_CreatedAt DEFAULT (SYSDATETIME()),
+        CONSTRAINT FK_ScanRequestImages_ScanRequests
+            FOREIGN KEY (RequestId) REFERENCES PDDImage.ScanRequests(Id) ON DELETE CASCADE,
+        CONSTRAINT FK_ScanRequestImages_ImagesTable
+            FOREIGN KEY (ImageId) REFERENCES PDDImage.ImagesTable(Id) ON DELETE CASCADE
     );
 END
 GO
 
-IF COL_LENGTH(N'dbo.Images', N'RelationCode') IS NULL
-    ALTER TABLE dbo.Images ADD RelationCode NVARCHAR(100) NULL;
-IF COL_LENGTH(N'dbo.Images', N'InquiryCode') IS NULL
-    ALTER TABLE dbo.Images ADD InquiryCode NVARCHAR(100) NULL;
-IF COL_LENGTH(N'dbo.Images', N'SoftwareCode') IS NULL
-    ALTER TABLE dbo.Images ADD SoftwareCode NVARCHAR(100) NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ScanRequestImages') AND name = N'IX_ScanRequestImages_RequestId')
+    CREATE INDEX IX_ScanRequestImages_RequestId ON PDDImage.ScanRequestImages(RequestId);
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Images') AND name = N'IX_Images_RequestId')
-    CREATE INDEX IX_Images_RequestId ON dbo.Images(RequestId);
+PRINT N'PDDImage schema created successfully.';
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.Images') AND name = N'IX_Images_ContextCodes')
-    CREATE INDEX IX_Images_ContextCodes ON dbo.Images(RelationCode, InquiryCode, SoftwareCode, CreatedAt);
-GO
+/* ════════════════════════════════════════════════════════════════════════
+   ایندکس‌های پیشنهادی برای گالری (اختیاری — فقط در صورت نیاز به سرعت بیشتر)
 
-/* ──────────────────────────── ImageGroups ──────────────────────────── */
-IF OBJECT_ID(N'dbo.ImageGroups', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.ImageGroups
-    (
-        Id    UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_ImageGroups PRIMARY KEY,
-        Name  NVARCHAR(100)    NOT NULL,
-        CONSTRAINT UQ_ImageGroups_Name UNIQUE (Name)
-    );
-END
-GO
+   چون جدول ImagesTable جدول پرحجم پروژه اصلی است، این ایندکس‌ها به کوئری‌های
+   گالری (فیلتر ISDELETED و مرتب‌سازی بر اساس Id) کمک می‌کنند:
 
-/* ──────────────────────────── ImageGroupItems ──────────────────────────── */
-IF OBJECT_ID(N'dbo.ImageGroupItems', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.ImageGroupItems
-    (
-        Id        UNIQUEIDENTIFIER NOT NULL CONSTRAINT PK_ImageGroupItems PRIMARY KEY,
-        ImageId   UNIQUEIDENTIFIER NOT NULL,
-        GroupId   UNIQUEIDENTIFIER NOT NULL,
-        CONSTRAINT FK_ImageGroupItems_Images
-            FOREIGN KEY (ImageId) REFERENCES dbo.Images(Id) ON DELETE CASCADE,
-        CONSTRAINT FK_ImageGroupItems_ImageGroups
-            FOREIGN KEY (GroupId) REFERENCES dbo.ImageGroups(Id) ON DELETE CASCADE,
-        CONSTRAINT UQ_ImageGroupItems_Image_Group UNIQUE (ImageId, GroupId)
-    );
-END
-GO
+   IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ImagesTable') AND name = N'IX_ImagesTable_Gallery')
+       CREATE INDEX IX_ImagesTable_Gallery ON PDDImage.ImagesTable(ISDELETED, ImageGroupID, SoftwareCode, PicType, RelationCode, UserCode, Id DESC);
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'dbo.ImageGroupItems') AND name = N'IX_ImageGroupItems_GroupId')
-    CREATE INDEX IX_ImageGroupItems_GroupId ON dbo.ImageGroupItems(GroupId);
-GO
+   IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID(N'PDDImage.ImagesTable') AND name = N'IX_ImagesTable_ISDELETED_Id')
+       CREATE INDEX IX_ImagesTable_ISDELETED_Id ON PDDImage.ImagesTable(ISDELETED, Id DESC);
+   ════════════════════════════════════════════════════════════════════════ */
 
-PRINT N'PddDocuments schema created successfully.';
-GO
+/* ─────────────────────────── پاک‌سازی جداول قدیمی (اختیاری) ───────────────────────────
+   اگر نسخه قبلی سیستم با جداول dbo.Agents / dbo.ScanRequests / dbo.Images /
+   dbo.ImageGroups / dbo.ImageGroupItems اجرا شده است و دیگر به آن‌ها نیازی
+   نیست، می‌توانید با این دستورات آن‌ها را حذف کنید:
+   
+   DROP TABLE IF EXISTS dbo.ImageGroupItems;
+   DROP TABLE IF EXISTS dbo.ImageGroups;
+   DROP TABLE IF EXISTS dbo.Images;
+   DROP TABLE IF EXISTS dbo.ScanRequests;
+   DROP TABLE IF EXISTS dbo.Agents;
+   ──────────────────────────────────────────────────────────────────────── */
